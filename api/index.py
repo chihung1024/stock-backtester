@@ -82,9 +82,8 @@ def run_simulation(portfolio_config, price_data, initial_amount):
         'portfolioHistory': [{'date': date.strftime('%Y-%m-%d'), 'value': value} for date, value in portfolio_history.items()]
     }
 
-# Vercel 會將對 /api/index 的請求導向到這個 app 物件
-# Flask 的路由會處理這個請求
-@app.route('/api/index', methods=['POST'])
+# *** FIX: Change the route to '/' to match Vercel's file-based routing ***
+@app.route('/', methods=['POST'])
 def handler():
     try:
         data = request.get_json()
