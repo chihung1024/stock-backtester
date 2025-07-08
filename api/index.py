@@ -154,19 +154,18 @@ def backtest_handler():
             failed_tickers = df_prices_raw.columns[df_prices_raw.isnull().all()].tolist()
             return jsonify({'error': f"無法獲取以下股票代碼的數據: {', '.join(failed_tickers)}"}), 400
         
-        # --- NEW VALIDATION LOGIC ---
-        # Check if any ticker's data starts significantly after the requested start date
+        # --- NEW: VALIDATION & WARNING LOGIC ---
         requested_start_date = pd.to_datetime(start_date_str)
         problematic_tickers = []
         for ticker in all_tickers:
             first_valid_date = df_prices_raw[ticker].first_valid_index()
-            # Check if the first valid date is more than 5 business days after the requested start
             if first_valid_date is not None and first_valid_date > requested_start_date + BDay(5):
                 problematic_tickers.append(f"{ticker} (從 {first_valid_date.strftime('%Y-%m-%d')} 開始)")
 
+        warning_message = None
         if problematic_tickers:
-            return jsonify({'error': f"部分資產的數據週期不足。請檢查以下股票代碼的起始日期，或調整您的回測區間：{', '.join(problematic_tickers)}"}), 400
-        # --- END NEW VALIDATION LOGIC ---
+            warning_message = f"部分資產的數據起始日晚於您的選擇。回測已自動調整至最早的共同可用日期。週期受影響的資產：{', '.join(problematic_tickers)}"
+        # --- END NEW LOGIC ---
 
         df_prices_common = df_prices_raw.dropna()
 
@@ -182,7 +181,8 @@ def backtest_handler():
         if not results:
             return jsonify({'error': '在指定的時間範圍內，沒有足夠的共同交易日來進行回測。'}), 400
 
-        return jsonify(results)
+        # --- MODIFIED: Return data object with results and optional warning ---
+        return jsonify({'data': results, 'warning': warning_message})
 
     except Exception as e:
         import traceback
