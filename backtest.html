@@ -373,7 +373,8 @@
             loader.classList.remove('hidden');
 
             try {
-                const response = await fetch('/api/index', {
+                // *** FIX: Call the correct API endpoint ***
+                const response = await fetch('/api/backtest', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
