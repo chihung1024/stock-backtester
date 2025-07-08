@@ -373,7 +373,6 @@
             loader.classList.remove('hidden');
 
             try {
-                // *** CHANGE: Use relative path for the API call ***
                 const response = await fetch('/api/index', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
