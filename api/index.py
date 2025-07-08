@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import yfinance as yf
 import pandas as pd
 import numpy as np
+from pandas.tseries.offsets import BDay # Import Business Day
 
 app = Flask(__name__)
 
@@ -152,11 +153,25 @@ def backtest_handler():
         if df_prices_raw.isnull().all().any():
             failed_tickers = df_prices_raw.columns[df_prices_raw.isnull().all()].tolist()
             return jsonify({'error': f"無法獲取以下股票代碼的數據: {', '.join(failed_tickers)}"}), 400
+        
+        # --- NEW VALIDATION LOGIC ---
+        # Check if any ticker's data starts significantly after the requested start date
+        requested_start_date = pd.to_datetime(start_date_str)
+        problematic_tickers = []
+        for ticker in all_tickers:
+            first_valid_date = df_prices_raw[ticker].first_valid_index()
+            # Check if the first valid date is more than 5 business days after the requested start
+            if first_valid_date is not None and first_valid_date > requested_start_date + BDay(5):
+                problematic_tickers.append(f"{ticker} (從 {first_valid_date.strftime('%Y-%m-%d')} 開始)")
+
+        if problematic_tickers:
+            return jsonify({'error': f"部分資產的數據週期不足。請檢查以下股票代碼的起始日期，或調整您的回測區間：{', '.join(problematic_tickers)}"}), 400
+        # --- END NEW VALIDATION LOGIC ---
 
         df_prices_common = df_prices_raw.dropna()
 
         if df_prices_common.empty:
-            return jsonify({'error': '在指定的時間範圍內，找不到所有股票的共同交易日。'}), 400
+            return jsonify({'error': '在指定的時間範圍內，找不到所有股票的共同交易日。這可能是因為選擇的資產在不同時期上市。'}), 400
 
         results = []
         for p_config in portfolios:
