@@ -36,13 +36,18 @@ def calculate_metrics(portfolio_history, risk_free_rate=0.02):
 
     # --- Sortino Ratio Calculation (Robust) ---
     daily_risk_free = (1 + risk_free_rate)**(1/252) - 1
-    downside_returns = daily_returns[daily_returns < daily_risk_free]
+    downside_returns = daily_returns - daily_risk_free
     
-    if len(downside_returns) > 1:
-        downside_std = downside_returns.std() * np.sqrt(252)
-        sortino_ratio = (cagr - risk_free_rate) / (downside_std + epsilon)
+    downside_returns[downside_returns > 0] = 0
+    
+    downside_squared = downside_returns**2
+    
+    annual_downside_std = np.sqrt(downside_squared.mean()) * np.sqrt(252)
+
+    if annual_downside_std < epsilon:
+        sortino_ratio = float('inf') if (cagr - risk_free_rate) > 0 else 0
     else:
-        sortino_ratio = float('inf') # If no downside risk, ratio is theoretically infinite
+        sortino_ratio = (cagr - risk_free_rate) / annual_downside_std
 
     return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': sharpe_ratio, 'sortino_ratio': sortino_ratio}
 
