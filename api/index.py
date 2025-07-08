@@ -82,9 +82,9 @@ def run_simulation(portfolio_config, price_data, initial_amount):
         'portfolioHistory': [{'date': date.strftime('%Y-%m-%d'), 'value': value} for date, value in portfolio_history.items()]
     }
 
-# *** FIX: Change the route to '/' to match Vercel's file-based routing ***
-@app.route('/', methods=['POST'])
-def handler():
+# *** FIX: Define a new route for the backtest logic ***
+@app.route('/api/backtest', methods=['POST'])
+def backtest_handler():
     try:
         data = request.get_json()
         portfolios = data['portfolios']
@@ -124,3 +124,8 @@ def handler():
 
     except Exception as e:
         return jsonify({'error': f'伺服器發生錯誤: {str(e)}'}), 500
+
+# *** FIX: Add a root route to confirm the server is running ***
+@app.route('/', methods=['GET'])
+def index():
+    return "Python backend is running."
