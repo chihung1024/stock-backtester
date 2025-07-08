@@ -1,12 +1,16 @@
 # 檔案路徑: /api/index.py
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+
+# Vercel 環境中，Flask 會自動處理 JSON 轉換，但為了本地測試和明確性，保留 jsonify
 import yfinance as yf
 import pandas as pd
 import numpy as np
 
 app = Flask(__name__)
-CORS(app) # 啟用 CORS
+
+# Vercel 會自動處理 CORS，在本機測試時若有需要再開啟
+# from flask_cors import CORS
+# CORS(app) 
 
 def calculate_metrics(portfolio_history, risk_free_rate=0.02):
     if portfolio_history.empty or len(portfolio_history) < 2:
@@ -82,48 +86,48 @@ def run_simulation(portfolio_config, price_data, initial_amount):
         'portfolioHistory': [{'date': date.strftime('%Y-%m-%d'), 'value': value} for date, value in portfolio_history.items()]
     }
 
-@app.route('/api/index', methods=['POST'])
-def handler():
-    try:
-        data = request.get_json()
-        portfolios = data['portfolios']
-        start_date_str = f"{data['startYear']}-{data['startMonth']}-01"
-        end_date_str = f"{data['endYear']}-{data['endMonth']}-28"
-        initial_amount = float(data['initialAmount'])
+# Vercel 會將所有對 /api/index 的請求導向到這個 `app` 物件
+# 我們不需要在這裡指定路由，Vercel 的檔案結構路由會處理
+def handler(request):
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            portfolios = data['portfolios']
+            start_date_str = f"{data['startYear']}-{data['startMonth']}-01"
+            end_date_str = f"{data['endYear']}-{data['endMonth']}-28"
+            initial_amount = float(data['initialAmount'])
 
-        all_tickers = sorted(list(set(ticker for p in portfolios for ticker in p['tickers'])))
-        
-        if not all_tickers:
-            return jsonify({'error': '請至少在一個投資組合中設定一項資產。'}), 400
+            all_tickers = sorted(list(set(ticker for p in portfolios for ticker in p['tickers'])))
+            
+            if not all_tickers:
+                return jsonify({'error': '請至少在一個投資組合中設定一項資產。'}), 400
 
-        df_prices_raw = yf.download(all_tickers, start=start_date_str, end=end_date_str, auto_adjust=True)['Close']
-        
-        if isinstance(df_prices_raw, pd.Series):
-            df_prices_raw = df_prices_raw.to_frame(name=all_tickers[0])
+            df_prices_raw = yf.download(all_tickers, start=start_date_str, end=end_date_str, auto_adjust=True)['Close']
+            
+            if isinstance(df_prices_raw, pd.Series):
+                df_prices_raw = df_prices_raw.to_frame(name=all_tickers[0])
 
-        if df_prices_raw.isnull().all().any():
-            failed_tickers = df_prices_raw.columns[df_prices_raw.isnull().all()].tolist()
-            return jsonify({'error': f"無法獲取數據: {', '.join(failed_tickers)}"}), 400
+            if df_prices_raw.isnull().all().any():
+                failed_tickers = df_prices_raw.columns[df_prices_raw.isnull().all()].tolist()
+                return jsonify({'error': f"無法獲取數據: {', '.join(failed_tickers)}"}), 400
 
-        df_prices_common = df_prices_raw.dropna()
+            df_prices_common = df_prices_raw.dropna()
 
-        if df_prices_common.empty:
-            return jsonify({'error': '在指定的時間範圍內，找不到所有股票的共同交易日。'}), 400
+            if df_prices_common.empty:
+                return jsonify({'error': '在指定的時間範圍內，找不到所有股票的共同交易日。'}), 400
 
-        results = []
-        for p_config in portfolios:
-            if not p_config['tickers']: continue
-            sim_result = run_simulation(p_config, df_prices_common, initial_amount)
-            if sim_result: results.append(sim_result)
-        
-        if not results:
-            return jsonify({'error': '在指定的時間範圍內，沒有足夠的共同交易日來進行回測。'}), 400
+            results = []
+            for p_config in portfolios:
+                if not p_config['tickers']: continue
+                sim_result = run_simulation(p_config, df_prices_common, initial_amount)
+                if sim_result: results.append(sim_result)
+            
+            if not results:
+                return jsonify({'error': '在指定的時間範圍內，沒有足夠的共同交易日來進行回測。'}), 400
 
-        return jsonify(results)
+            return jsonify(results)
 
-    except Exception as e:
-        return jsonify({'error': f'伺服器發生錯誤: {str(e)}'}), 500
-
-# 這段程式碼主要用於本地測試，Vercel 會忽略它
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+        except Exception as e:
+            return jsonify({'error': f'伺服器發生錯誤: {str(e)}'}), 500
+    # 處理非 POST 請求
+    return jsonify({'error': '僅支援 POST 請求'}), 405
