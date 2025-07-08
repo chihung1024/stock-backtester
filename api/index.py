@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 # --- Global Constants for better readability and maintenance ---
 # 將魔法數字定義為常數，方便未來統一修改與管理
-RISK_FREE_RATE = 0.02
+RISK_FREE_RATE = 0
 DAYS_PER_YEAR = 365.25
 MONTHS_PER_YEAR = 12
 EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
