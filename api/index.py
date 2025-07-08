@@ -1,146 +1,161 @@
-# 檔案路徑: /api/index.py
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import yfinance as yf
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 app = Flask(__name__)
+CORS(app)
 
-# Vercel 會自動處理 CORS，無需額外設定
+# Define constants for better readability and maintenance
+TRADING_DAYS_PER_YEAR = 252
 
-def calculate_metrics(portfolio_history, risk_free_rate=0.02):
-    # *** FIX: Add a small epsilon to prevent division by zero ***
-    epsilon = 1e-9 
-    if portfolio_history.empty or len(portfolio_history) < 2:
-        return {'cagr': 0, 'mdd': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0}
+def get_stock_data(ticker, start_date, end_date):
+    """Fetches historical stock data from Yahoo Finance."""
+    try:
+        stock_data = yf.download(ticker, start=start_date, end=end_date, progress=False)
+        if stock_data.empty:
+            print(f"No data found for {ticker}, symbol may be delisted or invalid.")
+            return None
+        return stock_data['Adj Close']
+    except Exception as e:
+        print(f"Error fetching data for {ticker}: {e}")
+        return None
 
-    end_value = portfolio_history['value'].iloc[-1]
-    start_value = portfolio_history['value'].iloc[0]
-    start_date = portfolio_history.index[0]
-    end_date = portfolio_history.index[-1]
-    years = (end_date - start_date).days / 365.25
-    cagr = (end_value / start_value) ** (1 / years) - 1 if years > 0 else 0
+def calculate_metrics(portfolio_values):
+    """Calculates performance metrics for a given portfolio value series."""
+    if portfolio_values.empty or len(portfolio_values) < 2:
+        return {
+            'cagr': 'N/A',
+            'mdd': 'N/A',
+            'sharpe_ratio': 'N/A',
+            'sortino_ratio': 'N/A'
+        }
 
-    portfolio_history['peak'] = portfolio_history['value'].cummax()
-    portfolio_history['drawdown'] = (portfolio_history['value'] - portfolio_history['peak']) / portfolio_history['peak']
-    mdd = portfolio_history['drawdown'].min()
+    # --- 1. Calculate Compounded Annual Growth Rate (CAGR) ---
+    total_return = portfolio_values.iloc[-1] / portfolio_values.iloc[0] - 1
+    years = (portfolio_values.index[-1] - portfolio_values.index[0]).days / 365.25
+    cagr = (1 + total_return) ** (1 / years) - 1 if years > 0 else 0
 
-    daily_returns = portfolio_history['value'].pct_change().dropna()
+    # --- 2. Calculate Maximum Drawdown (MDD) ---
+    cumulative_max = portfolio_values.cummax()
+    drawdown = (portfolio_values - cumulative_max) / cumulative_max
+    mdd = drawdown.min()
+
+    # --- 3. Calculate Sharpe Ratio ---
+    # The Sharpe Ratio measures the performance of an investment compared to a risk-free asset, after adjusting for its risk.
+    daily_returns = portfolio_values.pct_change().dropna()
+    annualized_std = daily_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
     
-    if len(daily_returns) < 2:
-        return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': 0, 'sortino_ratio': 0}
+    # Assuming risk-free rate is 0. Handle division by zero.
+    sharpe_ratio = cagr / annualized_std if annualized_std != 0 else 0
 
-    # --- Sharpe Ratio Calculation ---
-    annual_std = daily_returns.std() * np.sqrt(252)
-    sharpe_ratio = (cagr - risk_free_rate) / (annual_std + epsilon)
-
-    # --- Sortino Ratio Calculation (Robust) ---
-    daily_risk_free = (1 + risk_free_rate)**(1/252) - 1
-    downside_returns = daily_returns - daily_risk_free
+    # --- 4. Calculate Sortino Ratio ---
+    # The Sortino Ratio is a variation of the Sharpe Ratio that only factors in the downside, or negative, volatility.
+    negative_returns = daily_returns[daily_returns < 0]
+    downside_std = negative_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
     
-    downside_returns[downside_returns > 0] = 0
-    
-    downside_squared = downside_returns**2
-    
-    annual_downside_std = np.sqrt(downside_squared.mean()) * np.sqrt(252)
+    # Handle division by zero.
+    sortino_ratio = cagr / downside_std if downside_std != 0 else 0
 
-    if annual_downside_std < epsilon:
-        sortino_ratio = float('inf') if (cagr - risk_free_rate) > 0 else 0
-    else:
-        sortino_ratio = (cagr - risk_free_rate) / annual_downside_std
-
-    return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': sharpe_ratio, 'sortino_ratio': sortino_ratio}
-
-
-def get_rebalancing_dates(df_prices, period):
-    if period == 'never': return []
-    df = df_prices.copy()
-    df['year'] = df.index.year
-    df['month'] = df.index.month
-    if period == 'annually': rebalance_dates = df.drop_duplicates(subset=['year'], keep='first').index
-    elif period == 'quarterly':
-        df['quarter'] = df.index.quarter
-        rebalance_dates = df.drop_duplicates(subset=['year', 'quarter'], keep='first').index
-    elif period == 'monthly': rebalance_dates = df.drop_duplicates(subset=['year', 'month'], keep='first').index
-    else: return []
-    return rebalance_dates[1:]
-
-def run_simulation(portfolio_config, price_data, initial_amount):
-    tickers = portfolio_config['tickers']
-    weights = np.array(portfolio_config['weights']) / 100.0
-    rebalancing_period = portfolio_config['rebalancingPeriod']
-    df_prices = price_data[tickers].copy()
-    
-    if df_prices.empty: return None
-
-    portfolio_history = pd.Series(index=df_prices.index, dtype=float, name="value")
-    rebalancing_dates = get_rebalancing_dates(df_prices, rebalancing_period)
-    
-    current_date = df_prices.index[0]
-    shares = (initial_amount * weights) / df_prices.loc[current_date]
-    portfolio_history.loc[current_date] = initial_amount
-    
-    for i in range(1, len(df_prices)):
-        current_date = df_prices.index[i]
-        if current_date in rebalancing_dates:
-            current_value = (shares * df_prices.loc[current_date]).sum()
-            shares = (current_value * weights) / df_prices.loc[current_date]
-            portfolio_history.loc[current_date] = current_value
-        else:
-            portfolio_history.loc[current_date] = (shares * df_prices.loc[current_date]).sum()
-            
-    portfolio_history.dropna(inplace=True)
-    metrics = calculate_metrics(portfolio_history.to_frame('value'))
-    
     return {
-        'name': portfolio_config['name'], **metrics,
-        'portfolioHistory': [{'date': date.strftime('%Y-%m-%d'), 'value': value} for date, value in portfolio_history.items()]
+        'cagr': f"{cagr:.2%}",
+        'mdd': f"{mdd:.2%}",
+        'sharpe_ratio': f"{sharpe_ratio:.2f}" if annualized_std != 0 else 'N/A',
+        'sortino_ratio': f"{sortino_ratio:.2f}" if downside_std != 0 else 'N/A'
     }
 
-# *** FIX: Define a new route for the backtest logic ***
+
+def run_backtest(start_date, end_date, initial_investment, rebalance_frequency, dividend_reinvestment, portfolios):
+    """Runs the backtest for all configured portfolios."""
+    all_tickers = set()
+    for p in portfolios:
+        for ticker in p['allocations']:
+            all_tickers.add(ticker)
+
+    stock_data = {}
+    for ticker in all_tickers:
+        data = get_stock_data(ticker, start_date, end_date)
+        if data is not None:
+            stock_data[ticker] = data
+
+    results = {}
+    for i, p_config in enumerate(portfolios):
+        portfolio_name = p_config.get('name', f'Portfolio {i+1}')
+        allocations = p_config['allocations']
+        
+        valid_tickers = {ticker: weight for ticker, weight in allocations.items() if ticker in stock_data and not stock_data[ticker].empty}
+        if not valid_tickers:
+            continue
+
+        # Align data to common index
+        df = pd.DataFrame({ticker: stock_data[ticker] for ticker in valid_tickers})
+        df.dropna(inplace=True)
+
+        if df.empty:
+            continue
+
+        # Simplified rebalancing logic
+        portfolio_values = pd.Series(index=df.index, dtype=float)
+        portfolio_values.iloc[0] = initial_investment
+        
+        last_rebalance_date = df.index[0]
+        
+        # Calculate initial number of shares
+        current_allocations = {ticker: (initial_investment * (weight / 100.0)) / df.loc[last_rebalance_date, ticker] for ticker, weight in valid_tickers.items()}
+
+        for t in range(1, len(df.index)):
+            current_date = df.index[t]
+            
+            # Rebalance if needed
+            rebalance = False
+            if rebalance_frequency == 'annual' and current_date.year != last_rebalance_date.year:
+                rebalance = True
+            elif rebalance_frequency == 'quarterly' and (current_date.quarter != last_rebalance_date.quarter or current_date.year != last_rebalance_date.year):
+                rebalance = True
+            elif rebalance_frequency == 'monthly' and (current_date.month != last_rebalance_date.month or current_date.year != last_rebalance_date.year):
+                rebalance = True
+
+            # Calculate current portfolio value
+            current_value = sum(current_allocations[ticker] * df.loc[current_date, ticker] for ticker in valid_tickers)
+            portfolio_values[current_date] = current_value
+
+            if rebalance:
+                # Re-calculate number of shares based on new total value and target allocations
+                current_allocations = {ticker: (current_value * (weight / 100.0)) / df.loc[current_date, ticker] for ticker, weight in valid_tickers.items()}
+                last_rebalance_date = current_date
+        
+        portfolio_values.dropna(inplace=True)
+        metrics = calculate_metrics(portfolio_values)
+        
+        results[portfolio_name] = {
+            'metrics': metrics,
+            'data': portfolio_values.reset_index().rename(columns={'index': 'date', 0: 'value'}).to_dict('records')
+        }
+
+    return results
+
 @app.route('/api/backtest', methods=['POST'])
-def backtest_handler():
+def backtest_endpoint():
+    """API endpoint to trigger the backtest."""
     try:
-        data = request.get_json()
-        portfolios = data['portfolios']
-        start_date_str = f"{data['startYear']}-{data['startMonth']}-01"
-        end_date_str = f"{data['endYear']}-{data['endMonth']}-28"
-        initial_amount = float(data['initialAmount'])
+        config = request.json
+        start_date = datetime.strptime(config['startDate'], '%Y-%m-%d')
+        end_date = datetime.strptime(config['endDate'], '%Y-%m-%d')
 
-        all_tickers = sorted(list(set(ticker for p in portfolios for ticker in p['tickers'])))
-        
-        if not all_tickers:
-            return jsonify({'error': '請至少在一個投資組合中設定一項資產。'}), 400
-
-        df_prices_raw = yf.download(all_tickers, start=start_date_str, end=end_date_str, auto_adjust=True)['Close']
-        
-        if isinstance(df_prices_raw, pd.Series):
-            df_prices_raw = df_prices_raw.to_frame(name=all_tickers[0])
-
-        if df_prices_raw.isnull().all().any():
-            failed_tickers = df_prices_raw.columns[df_prices_raw.isnull().all()].tolist()
-            return jsonify({'error': f"無法獲取數據: {', '.join(failed_tickers)}"}), 400
-
-        df_prices_common = df_prices_raw.dropna()
-
-        if df_prices_common.empty:
-            return jsonify({'error': '在指定的時間範圍內，找不到所有股票的共同交易日。'}), 400
-
-        results = []
-        for p_config in portfolios:
-            if not p_config['tickers']: continue
-            sim_result = run_simulation(p_config, df_prices_common, initial_amount)
-            if sim_result: results.append(sim_result)
-        
-        if not results:
-            return jsonify({'error': '在指定的時間範圍內，沒有足夠的共同交易日來進行回測。'}), 400
-
+        results = run_backtest(
+            start_date,
+            end_date,
+            config['initialInvestment'],
+            config['rebalanceFrequency'],
+            config['dividendReinvestment'],
+            config['portfolios']
+        )
         return jsonify(results)
-
     except Exception as e:
-        return jsonify({'error': f'伺服器發生錯誤: {str(e)}'}), 500
+        print(f"An error occurred in backtest_endpoint: {e}")
+        return jsonify({"error": str(e)}), 500
 
-# *** FIX: Add a root route to confirm the server is running ***
-@app.route('/', methods=['GET'])
-def index():
-    return "Python backend is running."
+if __name__ == '__main__':
+    app.run(debug=True)
