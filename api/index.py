@@ -2,83 +2,77 @@ from flask import Flask, request, jsonify
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from pandas.tseries.offsets import BDay # Import Business Day
+from pandas.tseries.offsets import BDay, MonthEnd
 
 app = Flask(__name__)
 
+# --- Global Constants for better readability and maintenance ---
+# 將魔法數字定義為常數，方便未來統一修改與管理
+RISK_FREE_RATE = 0.02
+DAYS_PER_YEAR = 365.25
+MONTHS_PER_YEAR = 12
+EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
+
 # Vercel 會自動處理 CORS，無需額外設定
 
-def calculate_metrics(portfolio_history, risk_free_rate=0.02):
+def calculate_metrics(portfolio_history, risk_free_rate=RISK_FREE_RATE):
     """
-    Calculates performance metrics using a more robust method based on monthly returns.
+    使用基於月報酬率的穩健方法計算績效指標。
     """
-    epsilon = 1e-9
     if portfolio_history.empty or len(portfolio_history) < 2:
         return {'cagr': 0, 'mdd': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
-    # --- Basic metrics (CAGR, MDD) ---
+    # --- 基本指標 (CAGR, MDD) ---
     end_value = portfolio_history['value'].iloc[-1]
     start_value = portfolio_history['value'].iloc[0]
     
-    # Ensure start_value is not zero to avoid division errors
-    if start_value < epsilon:
+    if start_value < EPSILON:
         return {'cagr': 0, 'mdd': -1, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
     start_date = portfolio_history.index[0]
     end_date = portfolio_history.index[-1]
-    years = (end_date - start_date).days / 365.25
+    years = (end_date - start_date).days / DAYS_PER_YEAR
     cagr = (end_value / start_value) ** (1 / years) - 1 if years > 0 else 0
 
     portfolio_history['peak'] = portfolio_history['value'].cummax()
-    # Add epsilon to prevent division by zero if peak is ever zero
-    portfolio_history['drawdown'] = (portfolio_history['value'] - portfolio_history['peak']) / (portfolio_history['peak'] + epsilon)
+    portfolio_history['drawdown'] = (portfolio_history['value'] - portfolio_history['peak']) / (portfolio_history['peak'] + EPSILON)
     mdd = portfolio_history['drawdown'].min()
 
-    # --- Ratio Calculation based on Monthly Returns ---
-    # Resample to get the last value of each month, then calculate percentage change
+    # --- 基於月報酬率計算風險比率 ---
     monthly_returns = portfolio_history['value'].resample('M').last().pct_change().dropna()
 
-    # Need at least 2 months of returns to calculate standard deviation
     if len(monthly_returns) < 2:
         return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
-    # --- Sharpe Ratio ---
-    monthly_risk_free_rate = (1 + risk_free_rate)**(1/12) - 1
+    # --- 夏普比率 ---
+    monthly_risk_free_rate = (1 + risk_free_rate)**(1/MONTHS_PER_YEAR) - 1
     excess_returns = monthly_returns - monthly_risk_free_rate
     
     mean_excess_return = excess_returns.mean()
     std_excess_return = excess_returns.std()
 
     sharpe_ratio = 0.0
-    if std_excess_return > epsilon:
-        # Annualize the Sharpe Ratio (from monthly data)
-        sharpe_ratio = (mean_excess_return / std_excess_return) * np.sqrt(12)
+    if std_excess_return > EPSILON:
+        sharpe_ratio = (mean_excess_return / std_excess_return) * np.sqrt(MONTHS_PER_YEAR)
 
-    # --- Sortino Ratio ---
-    # Create a series of downside returns, with non-downside returns set to 0
+    # --- 索提諾比率 ---
     downside_returns = excess_returns.copy()
     downside_returns[downside_returns > 0] = 0
-    
-    # Calculate downside deviation from this series
     downside_std = np.sqrt((downside_returns**2).sum() / len(monthly_returns))
 
     sortino_ratio = 0.0
-    if downside_std > epsilon:
-        # Annualize from monthly data
-        sortino_ratio = (mean_excess_return / downside_std) * np.sqrt(12)
+    if downside_std > EPSILON:
+        sortino_ratio = (mean_excess_return / downside_std) * np.sqrt(MONTHS_PER_YEAR)
     elif mean_excess_return > 0:
-        # If there's no downside risk and returns are positive, ratio is infinite
         sortino_ratio = np.inf
     
-    # Handle potential infinity/nan values for JSON compatibility
+    # 處理無限大或 NaN 值，確保回傳的 JSON 格式正確
     if not np.isfinite(sharpe_ratio) or np.isnan(sharpe_ratio): sharpe_ratio = 0.0
     if not np.isfinite(sortino_ratio) or np.isnan(sortino_ratio): sortino_ratio = 0.0
 
     return {
-        'cagr': cagr,
-        'mdd': mdd,
-        'sharpe_ratio': sharpe_ratio,
-        'sortino_ratio': sortino_ratio
+        'cagr': cagr, 'mdd': mdd,
+        'sharpe_ratio': sharpe_ratio, 'sortino_ratio': sortino_ratio
     }
 
 
@@ -93,7 +87,6 @@ def get_rebalancing_dates(df_prices, period):
         rebalance_dates = df.drop_duplicates(subset=['year', 'quarter'], keep='first').index
     elif period == 'monthly': rebalance_dates = df.drop_duplicates(subset=['year', 'month'], keep='first').index
     else: return []
-    # Exclude the very first day from rebalancing dates
     return rebalance_dates[1:] if len(rebalance_dates) > 1 else []
 
 def run_simulation(portfolio_config, price_data, initial_amount):
@@ -107,25 +100,25 @@ def run_simulation(portfolio_config, price_data, initial_amount):
     portfolio_history = pd.Series(index=df_prices.index, dtype=float, name="value")
     rebalancing_dates = get_rebalancing_dates(df_prices, rebalancing_period)
     
-    # Initial investment
+    # 初始投資
     current_date = df_prices.index[0]
     initial_prices = df_prices.loc[current_date]
-    shares = (initial_amount * weights) / initial_prices
+    # 優化：在分母加上 EPSILON，防止股價為0時出錯
+    shares = (initial_amount * weights) / (initial_prices + EPSILON)
     portfolio_history.loc[current_date] = initial_amount
     
-    # Loop through subsequent days
+    # 迭代後續的每一天
     for i in range(1, len(df_prices)):
         current_date = df_prices.index[i]
         current_prices = df_prices.loc[current_date]
         
-        # ALWAYS calculate the current day's value first based on existing shares
+        # 步驟 1: 無論如何，都先根據現有持股計算當日價值
         current_value = (shares * current_prices).sum()
         portfolio_history.loc[current_date] = current_value
         
-        # THEN, if it's a rebalancing day, update the shares for the NEXT day's calculation
+        # 步驟 2: 然後，判斷當天是否為再平衡日，若是，則更新持股數，供下一日使用
         if current_date in rebalancing_dates:
-            # Use the value we just calculated for the rebalance
-            shares = (current_value * weights) / current_prices
+            shares = (current_value * weights) / (current_prices + EPSILON)
             
     portfolio_history.dropna(inplace=True)
     metrics = calculate_metrics(portfolio_history.to_frame('value'))
@@ -140,10 +133,13 @@ def backtest_handler():
     try:
         data = request.get_json()
         portfolios = data['portfolios']
+        
+        # 優化：更精確地處理結束日期
         start_date_str = f"{data['startYear']}-{data['startMonth']}-01"
-        end_date_str = f"{data['endYear']}-{data['endMonth']}-28" # Use a safe end date
+        end_date = pd.to_datetime(f"{data['endYear']}-{data['endMonth']}-01") + MonthEnd(0)
+        end_date_str = end_date.strftime('%Y-%m-%d')
+        
         initial_amount = float(data['initialAmount'])
-
         all_tickers = sorted(list(set(ticker for p in portfolios for ticker in p['tickers'])))
         
         if not all_tickers:
@@ -158,7 +154,7 @@ def backtest_handler():
             failed_tickers = df_prices_raw.columns[df_prices_raw.isnull().all()].tolist()
             return jsonify({'error': f"無法獲取以下股票代碼的數據: {', '.join(failed_tickers)}"}), 400
         
-        # --- VALIDATION & WARNING LOGIC ---
+        # 驗證與警告邏輯
         requested_start_date = pd.to_datetime(start_date_str)
         problematic_tickers = []
         for ticker in all_tickers:
