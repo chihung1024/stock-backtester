@@ -9,6 +9,8 @@ app = Flask(__name__)
 # Vercel 會自動處理 CORS，無需額外設定
 
 def calculate_metrics(portfolio_history, risk_free_rate=0.02):
+    # *** FIX: Add a small epsilon to prevent division by zero ***
+    epsilon = 1e-9 
     if portfolio_history.empty or len(portfolio_history) < 2:
         return {'cagr': 0, 'mdd': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
@@ -26,16 +28,24 @@ def calculate_metrics(portfolio_history, risk_free_rate=0.02):
     daily_returns = portfolio_history['value'].pct_change().dropna()
     
     if len(daily_returns) < 2:
-        return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': float('inf'), 'sortino_ratio': float('inf')}
+        return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
+    # --- Sharpe Ratio Calculation ---
     annual_std = daily_returns.std() * np.sqrt(252)
-    sharpe_ratio = (cagr - risk_free_rate) / annual_std if annual_std != 0 else float('inf')
+    sharpe_ratio = (cagr - risk_free_rate) / (annual_std + epsilon)
 
-    negative_returns = daily_returns[daily_returns < 0]
-    downside_std = negative_returns.std() * np.sqrt(252) if len(negative_returns) > 1 else 0
-    sortino_ratio = (cagr - risk_free_rate) / downside_std if downside_std != 0 else float('inf')
+    # --- Sortino Ratio Calculation (Robust) ---
+    daily_risk_free = (1 + risk_free_rate)**(1/252) - 1
+    downside_returns = daily_returns[daily_returns < daily_risk_free]
+    
+    if len(downside_returns) > 1:
+        downside_std = downside_returns.std() * np.sqrt(252)
+        sortino_ratio = (cagr - risk_free_rate) / (downside_std + epsilon)
+    else:
+        sortino_ratio = float('inf') # If no downside risk, ratio is theoretically infinite
 
     return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': sharpe_ratio, 'sortino_ratio': sortino_ratio}
+
 
 def get_rebalancing_dates(df_prices, period):
     if period == 'never': return []
