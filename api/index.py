@@ -21,7 +21,7 @@ cache = TTLCache(maxsize=128, ttl=600)
 
 # --- [CRITICAL] 指向您託管預處理數據的 Gist Raw URL ---
 # 您需要將此 URL 替換為您自己的 Gist Raw URL
-PREPROCESSED_DATA_URL = "https://gist.githubusercontent.com/YOUR_USERNAME/YOUR_GIST_ID/raw/preprocessed_data.json"
+PREPROCESSED_DATA_URL = "https://gist.githubusercontent.com/YOUR_USERNAME/6177b29fd7d2311e4ea2c592fcf21453/raw/preprocessed_data.json"
 
 # --- 核心計算函式 ---
 def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=RISK_FREE_RATE):
