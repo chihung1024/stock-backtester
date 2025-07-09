@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from pandas.tseries.offsets import BDay, MonthEnd
 import sys
+import os
 from io import StringIO
 from cachetools import cached, TTLCache
 import requests
@@ -11,7 +12,7 @@ import requests
 app = Flask(__name__)
 
 # --- 全域常數 ---
-RISK_FREE_RATE = 0
+RISK_FREE_RATE = 0.02
 TRADING_DAYS_PER_YEAR = 252
 DAYS_PER_YEAR = 365.25
 EPSILON = 1e-9
@@ -19,9 +20,9 @@ EPSILON = 1e-9
 # --- 快取設定 ---
 cache = TTLCache(maxsize=128, ttl=600)
 
-# --- [CRITICAL] 指向您託管預處理數據的 Gist Raw URL ---
-# 您需要將此 URL 替換為您自己的 Gist Raw URL
-PREPROCESSED_DATA_URL = "https://gist.githubusercontent.com/chihung1024/6177b29fd7d2311e4ea2c592fcf21453/raw/preprocessed_data.json"
+# --- [CRITICAL] 從環境變數讀取 Gist Raw URL ---
+# 這個 URL 現在將從您在 Vercel 專案的設定中讀取，不再寫死於此
+GIST_RAW_URL = os.environ.get('GIST_RAW_URL')
 
 # --- 核心計算函式 ---
 def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=RISK_FREE_RATE):
@@ -184,30 +185,24 @@ def scan_handler():
             if not benchmark_prices.empty: benchmark_history = benchmark_prices.rename(columns={benchmark_ticker: 'value'})
         results = []; requested_start_date = pd.to_datetime(start_date_str)
         available_tickers = df_prices_raw.columns.tolist() if hasattr(df_prices_raw, 'columns') else [df_prices_raw.name]
-        
         for ticker in tickers:
             try:
                 if ticker not in available_tickers:
                     results.append({'ticker': ticker, 'error': '找不到數據'})
                     continue
-
                 stock_prices = df_prices_raw[ticker].dropna()
                 if stock_prices.empty:
                     results.append({'ticker': ticker, 'error': '指定範圍內無數據'})
                     continue
-
                 note = None
                 problematic_info = validate_data_completeness(df_prices_raw, [ticker], requested_start_date)
-                if problematic_info:
-                    note = f"(從 {problematic_info[0]['start_date']} 開始)"
-
+                if problematic_info: note = f"(從 {problematic_info[0]['start_date']} 開始)"
                 history_df = stock_prices.to_frame(name='value')
                 metrics = calculate_metrics(history_df, benchmark_history)
                 results.append({'ticker': ticker, **metrics, 'note': note})
             except Exception as e:
                 print(f"處理 {ticker} 時發生錯誤: {e}")
                 results.append({'ticker': ticker, 'error': '計算錯誤'})
-
         return jsonify(results)
     except Exception as e:
         import traceback; print(traceback.format_exc())
@@ -216,7 +211,9 @@ def scan_handler():
 @cached(cache)
 def get_preprocessed_data():
     """從 Gist 下載並快取預處理好的數據"""
-    response = requests.get(PREPROCESSED_DATA_URL)
+    if not GIST_RAW_URL:
+        raise ValueError("錯誤：GIST_RAW_URL 環境變數未設定。請在 Vercel 專案設定中新增此變數。")
+    response = requests.get(GIST_RAW_URL)
     response.raise_for_status() # 如果下載失敗會拋出錯誤
     return response.json()
 
@@ -249,6 +246,8 @@ def screener_handler():
             filtered_stocks.append(stock['ticker'])
 
         return jsonify(filtered_stocks)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         import traceback; print(traceback.format_exc())
         return jsonify({'error': f'篩選器發生錯誤: {str(e)}'}), 500
