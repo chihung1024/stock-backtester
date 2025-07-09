@@ -12,7 +12,7 @@ import requests
 app = Flask(__name__)
 
 # --- 全域常數 ---
-RISK_FREE_RATE = 0.02
+RISK_FREE_RATE = 0
 TRADING_DAYS_PER_YEAR = 252
 DAYS_PER_YEAR = 365.25
 EPSILON = 1e-9
