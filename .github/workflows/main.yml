@@ -1,0 +1,33 @@
+name: Update Stock Screener Data
+
+on:
+  workflow_dispatch: # 允許手動觸發
+  schedule:
+    - cron: '0 0 * * *' # 每日午夜 (UTC) 自動執行
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run data update script
+        run: python update_data.py
+
+      - name: Update Gist with new data
+        uses: exuanbo/actions-sync-gist@v1
+        with:
+          token: ${{ secrets.GIST_SECRET }}
+          gist_id: ${{ secrets.GIST_ID }}
+          file_path: 'preprocessed_data.json'
