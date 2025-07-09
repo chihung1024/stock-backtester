@@ -10,21 +10,21 @@ app = Flask(__name__)
 
 # --- 全域常數，提升可讀性與可維護性 ---
 RISK_FREE_RATE = 0
+TRADING_DAYS_PER_YEAR = 252 # 使用交易日進行年化
 DAYS_PER_YEAR = 365.25
-MONTHS_PER_YEAR = 12
 EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
 
 # --- 核心計算函式 ---
 
 def calculate_metrics(portfolio_history, risk_free_rate=RISK_FREE_RATE):
     """
-    [REVISED] 使用更直觀且穩健的方式計算績效指標。
-    夏普和索提諾比率的分子現在直接使用年化超額報酬(CAGR - Rf)，確保與CAGR的正負號一致。
+    [OPTIMIZED] 使用基於「每日報酬率」的穩健方法計算績效指標。
+    這能更精確地捕捉波動風險，並自然地解決索提諾比率在強勁牛市中的極端值問題。
     """
     if portfolio_history.empty or len(portfolio_history) < 2:
         return {'cagr': 0, 'mdd': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
-    # --- CAGR and MDD (Unchanged) ---
+    # --- CAGR and MDD (維持不變) ---
     end_value = portfolio_history['value'].iloc[-1]
     start_value = portfolio_history['value'].iloc[0]
     
@@ -40,31 +40,30 @@ def calculate_metrics(portfolio_history, risk_free_rate=RISK_FREE_RATE):
     portfolio_history['drawdown'] = (portfolio_history['value'] - portfolio_history['peak']) / (portfolio_history['peak'] + EPSILON)
     mdd = portfolio_history['drawdown'].min()
 
-    # --- Ratio Calculation ---
-    monthly_returns = portfolio_history['value'].resample('M').last().pct_change().dropna()
+    # --- 基於每日報酬率計算風險比率 ---
+    daily_returns = portfolio_history['value'].pct_change().dropna()
 
-    if len(monthly_returns) < 2:
+    if len(daily_returns) < 2:
         return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
-    # --- REVISED: Numerator based on Annualized Excess Return ---
-    # 分子：使用年化超額報酬，使其與 CAGR 直觀相關
+    # --- 分子：年化超額報酬 ---
     annualized_excess_return = cagr - risk_free_rate
 
-    # --- REVISED: Denominator for Sharpe Ratio ---
-    # 分母：使用月實際報酬率的年化標準差
-    annual_std = monthly_returns.std() * np.sqrt(MONTHS_PER_YEAR)
+    # --- 分母 (夏普比率)：基於每日報酬率的年化標準差 ---
+    annual_std = daily_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
     sharpe_ratio = annualized_excess_return / (annual_std + EPSILON)
 
-    # --- REVISED: Denominator for Sortino Ratio ---
-    # 分母：使用月實際報酬率的年化下行標準差 (相對於無風險利率)
-    monthly_risk_free_rate = (1 + risk_free_rate)**(1/MONTHS_PER_YEAR) - 1
-    downside_returns = monthly_returns - monthly_risk_free_rate
-    downside_returns[downside_returns > 0] = 0
-    # The denominator for downside deviation should be the number of all periods, not just downside periods.
-    downside_std = np.sqrt((downside_returns**2).mean()) * np.sqrt(MONTHS_PER_YEAR)
-    sortino_ratio = annualized_excess_return / (downside_std + EPSILON)
+    # --- 分母 (索提諾比率)：基於每日報酬率的年化下行標準差 ---
+    daily_risk_free_rate = (1 + risk_free_rate)**(1/TRADING_DAYS_PER_YEAR) - 1
+    downside_returns = daily_returns - daily_risk_free_rate
+    downside_returns[downside_returns < 0] = 0 # 只保留負報酬 (相對於無風險利率)
+    downside_std = np.sqrt((downside_returns**2).mean()) * np.sqrt(TRADING_DAYS_PER_YEAR)
+    
+    sortino_ratio = 0.0
+    if downside_std > EPSILON:
+        sortino_ratio = annualized_excess_return / downside_std
 
-    # Final formatting
+    # 最終格式化
     if not np.isfinite(sharpe_ratio) or np.isnan(sharpe_ratio): sharpe_ratio = 0.0
     if not np.isfinite(sortino_ratio) or np.isnan(sortino_ratio): sortino_ratio = 0.0
 
