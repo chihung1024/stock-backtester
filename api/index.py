@@ -184,16 +184,30 @@ def scan_handler():
             if not benchmark_prices.empty: benchmark_history = benchmark_prices.rename(columns={benchmark_ticker: 'value'})
         results = []; requested_start_date = pd.to_datetime(start_date_str)
         available_tickers = df_prices_raw.columns.tolist() if hasattr(df_prices_raw, 'columns') else [df_prices_raw.name]
+        
         for ticker in tickers:
-            if ticker not in available_tickers: results.append({'ticker': ticker, 'error': '找不到數據'}); continue
-            stock_prices = df_prices_raw[ticker].dropna()
-            if stock_prices.empty: results.append({'ticker': ticker, 'error': '指定範圍內無數據'}); continue
-            note = None
-            problematic_info = validate_data_completeness(df_prices_raw, [ticker], requested_start_date)
-            if problematic_info: note = f"(從 {problematic_info[0]['start_date']} 開始)"
-            history_df = stock_prices.to_frame(name='value')
-            metrics = calculate_metrics(history_df, benchmark_history)
-            results.append({'ticker': ticker, **metrics, 'note': note})
+            try:
+                if ticker not in available_tickers:
+                    results.append({'ticker': ticker, 'error': '找不到數據'})
+                    continue
+
+                stock_prices = df_prices_raw[ticker].dropna()
+                if stock_prices.empty:
+                    results.append({'ticker': ticker, 'error': '指定範圍內無數據'})
+                    continue
+
+                note = None
+                problematic_info = validate_data_completeness(df_prices_raw, [ticker], requested_start_date)
+                if problematic_info:
+                    note = f"(從 {problematic_info[0]['start_date']} 開始)"
+
+                history_df = stock_prices.to_frame(name='value')
+                metrics = calculate_metrics(history_df, benchmark_history)
+                results.append({'ticker': ticker, **metrics, 'note': note})
+            except Exception as e:
+                print(f"處理 {ticker} 時發生錯誤: {e}")
+                results.append({'ticker': ticker, 'error': '計算錯誤'})
+
         return jsonify(results)
     except Exception as e:
         import traceback; print(traceback.format_exc())
