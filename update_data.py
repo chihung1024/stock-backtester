@@ -42,7 +42,9 @@ def main():
     print("開始從 ETF 獲取指數成分股...")
     sp500_tickers = set(get_etf_holdings("VOO"))
     nasdaq100_tickers = set(get_etf_holdings("QQQ"))
-    all_unique_tickers = sorted(list(sp500_tickers.union(nasdaq100_tickers)))
+    russell3000_tickers = set(get_etf_holdings("IWV")) # MODIFIED: Changed from IWM to IWV
+    
+    all_unique_tickers = sorted(list(sp500_tickers.union(nasdaq100_tickers).union(russell3000_tickers)))
     
     if not all_unique_tickers:
         print("錯誤：無法獲取任何成分股，終止執行。")
@@ -58,6 +60,7 @@ def main():
             # 標記該股票屬於哪個指數
             info['in_sp500'] = ticker in sp500_tickers
             info['in_nasdaq100'] = ticker in nasdaq100_tickers
+            info['in_russell3000'] = ticker in russell3000_tickers # MODIFIED: Changed key name
             all_stock_data.append(info)
         # 為了避免對 API 造成太大負擔，每處理一筆就稍微延遲一下
         time.sleep(0.1) 
