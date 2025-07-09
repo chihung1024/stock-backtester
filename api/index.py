@@ -9,7 +9,7 @@ from io import StringIO
 app = Flask(__name__)
 
 # --- 全域常數，提升可讀性與可維護性 ---
-RISK_FREE_RATE = 0
+RISK_FREE_RATE = 0.02
 DAYS_PER_YEAR = 365.25
 MONTHS_PER_YEAR = 12
 EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
@@ -108,9 +108,11 @@ def validate_data_completeness(df_prices_raw, all_tickers, requested_start_date)
     """
     problematic_tickers = []
     for ticker in all_tickers:
-        first_valid_date = df_prices_raw[ticker].first_valid_index()
-        if first_valid_date is not None and first_valid_date > requested_start_date + BDay(5):
-            problematic_tickers.append({'ticker': ticker, 'start_date': first_valid_date.strftime('%Y-%m-%d')})
+        # 確保 ticker 存在於 DataFrame 中
+        if ticker in df_prices_raw.columns:
+            first_valid_date = df_prices_raw[ticker].first_valid_index()
+            if first_valid_date is not None and first_valid_date > requested_start_date + BDay(5):
+                problematic_tickers.append({'ticker': ticker, 'start_date': first_valid_date.strftime('%Y-%m-%d')})
     return problematic_tickers
 
 def download_data_silently(tickers, start_date, end_date):
@@ -120,7 +122,7 @@ def download_data_silently(tickers, start_date, end_date):
     old_stdout = sys.stdout
     sys.stdout = StringIO()
     try:
-        data = yf.download(tickers, start=start_date, end=end_date, auto_adjust=True)['Close']
+        data = yf.download(tickers, start=start_date, end=end_date, auto_adjust=True, progress=False)['Close']
     finally:
         sys.stdout = old_stdout
     return data
@@ -178,21 +180,23 @@ def scan_handler():
 
         results = []
         requested_start_date = pd.to_datetime(start_date_str)
+        
+        # 獲取實際下載到的股票代碼列表
+        available_tickers = df_prices_raw.columns.tolist()
 
         for ticker in tickers:
-            stock_series = df_prices_raw.get(ticker)
-
-            if stock_series is None or stock_series.isnull().all():
+            # 如果請求的 ticker 不在下載到的資料中，直接標記為錯誤
+            if ticker not in available_tickers:
                 results.append({'ticker': ticker, 'error': '找不到數據'})
                 continue
 
-            stock_prices = stock_series.dropna()
+            stock_prices = df_prices_raw[ticker].dropna()
             if stock_prices.empty:
                 results.append({'ticker': ticker, 'error': '指定範圍內無數據'})
                 continue
 
             note = None
-            problematic_info = validate_data_completeness(stock_prices.to_frame(), [ticker], requested_start_date)
+            problematic_info = validate_data_completeness(df_prices_raw, [ticker], requested_start_date)
             if problematic_info:
                 note = f"(從 {problematic_info[0]['start_date']} 開始)"
 
