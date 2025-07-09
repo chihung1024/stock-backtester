@@ -1,4 +1,5 @@
-Flask
+flask
 yfinance
 pandas
 numpy
+cachetools
