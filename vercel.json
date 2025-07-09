@@ -1,13 +1,19 @@
 {
   "version": 2,
-  "rewrites": [
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
+    }
+  },
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
     },
     {
-      "source": "/(.*)",
-      "destination": "/backtest.html"
+      "src": "/(.*)",
+      "dest": "/backtest.html"
     }
   ]
 }
