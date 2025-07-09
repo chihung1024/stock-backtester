@@ -9,7 +9,7 @@ from io import StringIO
 app = Flask(__name__)
 
 # --- 全域常數，提升可讀性與可維護性 ---
-RISK_FREE_RATE = 0.02
+RISK_FREE_RATE = 0
 DAYS_PER_YEAR = 365.25
 MONTHS_PER_YEAR = 12
 EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
