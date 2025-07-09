@@ -254,5 +254,11 @@ def screener_handler():
 
 
 @app.route('/', methods=['GET'])
+@app.route('/api/debug')
+def debug_handler():
+    # 將所有可見的環境變數轉換為一個字典
+    env_vars = {key: value for key, value in os.environ.items()}
+    # 以 JSON 格式回傳，方便在瀏覽器上查看
+    return jsonify(env_vars)
 def index():
     return "Python backend is running."
