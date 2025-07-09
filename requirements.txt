@@ -4,5 +4,3 @@ pandas
 numpy
 cachetools
 requests
-beautifulsoup4
-lxml
