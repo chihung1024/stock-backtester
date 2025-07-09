@@ -3,7 +3,7 @@ name: Update Stock Screener Data
 on:
   workflow_dispatch: # 允許手動觸發
   schedule:
-    - cron: '0 0 * * *' # 每日午夜 (UTC) 自動執行
+    - cron: '0 8 * * *' # 每日午夜 (UTC) 執行，約為台灣時間早上8點
 
 jobs:
   update-data:
@@ -26,8 +26,7 @@ jobs:
         run: python update_data.py
 
       - name: Update Gist with new data
-        uses: joshuacurtis/sync-to-gist-action@v1
-        with:
-          file-path: 'preprocessed_data.json'
-          gist-id: ${{ secrets.GIST_ID }}
-          gist-token: ${{ secrets.GIST_SECRET }}
+        env:
+          GH_TOKEN: ${{ secrets.GIST_SECRET }}
+        run: |
+          gh gist edit ${{ secrets.GIST_ID }} preprocessed_data.json
