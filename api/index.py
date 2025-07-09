@@ -7,7 +7,7 @@ from pandas.tseries.offsets import BDay, MonthEnd
 app = Flask(__name__)
 
 # --- Global Constants for better readability and maintenance ---
-RISK_FREE_RATE = 0.02
+RISK_FREE_RATE = 0
 DAYS_PER_YEAR = 365.25
 MONTHS_PER_YEAR = 12
 EPSILON = 1e-9 # A small number to prevent division by zero
