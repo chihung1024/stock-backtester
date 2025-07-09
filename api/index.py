@@ -9,7 +9,7 @@ from io import StringIO
 app = Flask(__name__)
 
 # --- 全域常數，提升可讀性與可維護性 ---
-RISK_FREE_RATE = 0.02
+RISK_FREE_RATE = 0
 DAYS_PER_YEAR = 365.25
 MONTHS_PER_YEAR = 12
 EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
@@ -17,10 +17,14 @@ EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
 # --- 核心計算函式 ---
 
 def calculate_metrics(portfolio_history, risk_free_rate=RISK_FREE_RATE):
-    """使用基於月報酬率的穩健方法計算績效指標。"""
+    """
+    [REVISED] 使用更直觀且穩健的方式計算績效指標。
+    夏普和索提諾比率的分子現在直接使用年化超額報酬(CAGR - Rf)，確保與CAGR的正負號一致。
+    """
     if portfolio_history.empty or len(portfolio_history) < 2:
         return {'cagr': 0, 'mdd': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
+    # --- CAGR and MDD (Unchanged) ---
     end_value = portfolio_history['value'].iloc[-1]
     start_value = portfolio_history['value'].iloc[0]
     
@@ -36,32 +40,36 @@ def calculate_metrics(portfolio_history, risk_free_rate=RISK_FREE_RATE):
     portfolio_history['drawdown'] = (portfolio_history['value'] - portfolio_history['peak']) / (portfolio_history['peak'] + EPSILON)
     mdd = portfolio_history['drawdown'].min()
 
+    # --- Ratio Calculation ---
     monthly_returns = portfolio_history['value'].resample('M').last().pct_change().dropna()
 
     if len(monthly_returns) < 2:
         return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
+    # --- REVISED: Numerator based on Annualized Excess Return ---
+    # 分子：使用年化超額報酬，使其與 CAGR 直觀相關
+    annualized_excess_return = cagr - risk_free_rate
+
+    # --- REVISED: Denominator for Sharpe Ratio ---
+    # 分母：使用月實際報酬率的年化標準差
+    annual_std = monthly_returns.std() * np.sqrt(MONTHS_PER_YEAR)
+    sharpe_ratio = annualized_excess_return / (annual_std + EPSILON)
+
+    # --- REVISED: Denominator for Sortino Ratio ---
+    # 分母：使用月實際報酬率的年化下行標準差 (相對於無風險利率)
     monthly_risk_free_rate = (1 + risk_free_rate)**(1/MONTHS_PER_YEAR) - 1
-    excess_returns = monthly_returns - monthly_risk_free_rate
-    mean_excess_return = excess_returns.mean()
-    std_excess_return = excess_returns.std()
-
-    sharpe_ratio = (mean_excess_return / (std_excess_return + EPSILON)) * np.sqrt(MONTHS_PER_YEAR)
-
-    downside_returns = excess_returns.copy()
+    downside_returns = monthly_returns - monthly_risk_free_rate
     downside_returns[downside_returns > 0] = 0
-    downside_std = np.sqrt((downside_returns**2).sum() / len(monthly_returns))
+    # The denominator for downside deviation should be the number of all periods, not just downside periods.
+    downside_std = np.sqrt((downside_returns**2).mean()) * np.sqrt(MONTHS_PER_YEAR)
+    sortino_ratio = annualized_excess_return / (downside_std + EPSILON)
 
-    sortino_ratio = 0.0
-    if downside_std > EPSILON:
-        sortino_ratio = (mean_excess_return / downside_std) * np.sqrt(MONTHS_PER_YEAR)
-    elif mean_excess_return > 0:
-        sortino_ratio = np.inf
-    
+    # Final formatting
     if not np.isfinite(sharpe_ratio) or np.isnan(sharpe_ratio): sharpe_ratio = 0.0
     if not np.isfinite(sortino_ratio) or np.isnan(sortino_ratio): sortino_ratio = 0.0
 
     return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': sharpe_ratio, 'sortino_ratio': sortino_ratio}
+
 
 def get_rebalancing_dates(df_prices, period):
     if period == 'never': return []
@@ -181,11 +189,9 @@ def scan_handler():
         results = []
         requested_start_date = pd.to_datetime(start_date_str)
         
-        # 獲取實際下載到的股票代碼列表
         available_tickers = df_prices_raw.columns.tolist()
 
         for ticker in tickers:
-            # 如果請求的 ticker 不在下載到的資料中，直接標記為錯誤
             if ticker not in available_tickers:
                 results.append({'ticker': ticker, 'error': '找不到數據'})
                 continue
