@@ -56,7 +56,8 @@ def calculate_metrics(portfolio_history, risk_free_rate=RISK_FREE_RATE):
     # --- 分母 (索提諾比率)：基於每日報酬率的年化下行標準差 ---
     daily_risk_free_rate = (1 + risk_free_rate)**(1/TRADING_DAYS_PER_YEAR) - 1
     downside_returns = daily_returns - daily_risk_free_rate
-    downside_returns[downside_returns < 0] = 0 # 只保留負報酬 (相對於無風險利率)
+    # [CRITICAL FIX] 修正：只計算負報酬的波動，將正報酬設為0
+    downside_returns[downside_returns > 0] = 0 
     downside_std = np.sqrt((downside_returns**2).mean()) * np.sqrt(TRADING_DAYS_PER_YEAR)
     
     sortino_ratio = 0.0
