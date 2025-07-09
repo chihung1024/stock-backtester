@@ -6,15 +6,16 @@ from pandas.tseries.offsets import BDay, MonthEnd
 
 app = Flask(__name__)
 
-# --- Global Constants for better readability and maintenance ---
+# --- 全域常數，提升可讀性與可維護性 ---
 RISK_FREE_RATE = 0
 DAYS_PER_YEAR = 365.25
 MONTHS_PER_YEAR = 12
-EPSILON = 1e-9 # A small number to prevent division by zero
+EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
 
-# --- Core Calculation Functions ---
+# --- 核心計算函式 ---
 
 def calculate_metrics(portfolio_history, risk_free_rate=RISK_FREE_RATE):
+    """使用基於月報酬率的穩健方法計算績效指標。"""
     if portfolio_history.empty or len(portfolio_history) < 2:
         return {'cagr': 0, 'mdd': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0}
 
@@ -96,7 +97,21 @@ def run_simulation(portfolio_config, price_data, initial_amount):
     metrics = calculate_metrics(portfolio_history.to_frame('value'))
     return {'name': portfolio_config['name'], **metrics, 'portfolioHistory': [{'date': date.strftime('%Y-%m-%d'), 'value': value} for date, value in portfolio_history.items()]}
 
-# --- API Endpoints ---
+# --- 輔助函式 ---
+
+def validate_data_completeness(df_prices_raw, all_tickers, requested_start_date):
+    """
+    檢查是否有任何股票的數據起始日顯著晚於請求的起始日。
+    回傳有問題的股票列表，用於產生警告或備註。
+    """
+    problematic_tickers = []
+    for ticker in all_tickers:
+        first_valid_date = df_prices_raw[ticker].first_valid_index()
+        if first_valid_date is not None and first_valid_date > requested_start_date + BDay(5):
+            problematic_tickers.append({'ticker': ticker, 'start_date': first_valid_date.strftime('%Y-%m-%d')})
+    return problematic_tickers
+
+# --- API 端點 ---
 
 @app.route('/api/backtest', methods=['POST'])
 def backtest_handler():
@@ -107,22 +122,26 @@ def backtest_handler():
         end_date_str = end_date.strftime('%Y-%m-%d')
         all_tickers = sorted(list(set(ticker for p in data['portfolios'] for ticker in p['tickers'])))
         if not all_tickers: return jsonify({'error': '請至少在一個投資組合中設定一項資產。'}), 400
+        
         df_prices_raw = yf.download(all_tickers, start=start_date_str, end=end_date_str, auto_adjust=True)['Close']
         if isinstance(df_prices_raw, pd.Series): df_prices_raw = df_prices_raw.to_frame(name=all_tickers[0])
         if df_prices_raw.isnull().all().any():
             failed_tickers = df_prices_raw.columns[df_prices_raw.isnull().all()].tolist()
             return jsonify({'error': f"無法獲取以下股票代碼的數據: {', '.join(failed_tickers)}"}), 400
-        requested_start_date = pd.to_datetime(start_date_str)
-        problematic_tickers = []
-        for ticker in all_tickers:
-            first_valid_date = df_prices_raw[ticker].first_valid_index()
-            if first_valid_date is not None and first_valid_date > requested_start_date + BDay(5):
-                problematic_tickers.append(f"{ticker} (從 {first_valid_date.strftime('%Y-%m-%d')} 開始)")
-        warning_message = f"部分資產的數據起始日晚於您的選擇。回測已自動調整至最早的共同可用日期。週期受影響的資產：{', '.join(problematic_tickers)}" if problematic_tickers else None
+        
+        # 使用輔助函式進行數據完整性檢查
+        problematic_tickers_info = validate_data_completeness(df_prices_raw, all_tickers, pd.to_datetime(start_date_str))
+        warning_message = None
+        if problematic_tickers_info:
+            tickers_str = ", ".join([f"{item['ticker']} (從 {item['start_date']} 開始)" for item in problematic_tickers_info])
+            warning_message = f"部分資產的數據起始日晚於您的選擇。回測已自動調整至最早的共同可用日期。週期受影響的資產：{tickers_str}"
+        
         df_prices_common = df_prices_raw.dropna()
         if df_prices_common.empty: return jsonify({'error': '在指定的時間範圍內，找不到所有股票的共同交易日。'}), 400
+        
         results = [res for p_config in data['portfolios'] if p_config['tickers'] and (res := run_simulation(p_config, df_prices_common, float(data['initialAmount'])))]
         if not results: return jsonify({'error': '沒有足夠的共同交易日來進行回測。'}), 400
+        
         return jsonify({'data': results, 'warning': warning_message})
     except Exception as e:
         import traceback; print(traceback.format_exc())
@@ -141,7 +160,6 @@ def scan_handler():
             return jsonify({'error': '股票代碼列表不可為空。'}), 400
 
         df_prices_raw = yf.download(tickers, start=start_date_str, end=end_date_str, auto_adjust=True)['Close']
-        
         if isinstance(df_prices_raw, pd.Series):
             df_prices_raw = df_prices_raw.to_frame(name=tickers[0])
 
@@ -149,22 +167,25 @@ def scan_handler():
         requested_start_date = pd.to_datetime(start_date_str)
 
         for ticker in tickers:
-            note = None
-            if ticker not in df_prices_raw.columns or df_prices_raw[ticker].isnull().all():
-                results.append({'ticker': ticker, 'error': 'No data found'})
+            # 優化：直接操作 Series，避免產生不必要的 DataFrame
+            stock_series = df_prices_raw.get(ticker)
+
+            if stock_series is None or stock_series.isnull().all():
+                results.append({'ticker': ticker, 'error': '找不到數據'})
                 continue
 
-            stock_prices = df_prices_raw[[ticker]].dropna()
+            stock_prices = stock_series.dropna()
             if stock_prices.empty:
-                results.append({'ticker': ticker, 'error': 'No data in range'})
+                results.append({'ticker': ticker, 'error': '指定範圍內無數據'})
                 continue
 
-            # Check for shortened period and create a note
-            actual_start_date = stock_prices.index[0]
-            if actual_start_date > requested_start_date + BDay(5):
-                note = f"(從 {actual_start_date.strftime('%Y-%m-%d')} 開始)"
+            # 使用輔助函式進行數據完整性檢查
+            note = None
+            problematic_info = validate_data_completeness(stock_prices.to_frame(), [ticker], requested_start_date)
+            if problematic_info:
+                note = f"(從 {problematic_info[0]['start_date']} 開始)"
 
-            history_df = stock_prices.rename(columns={ticker: 'value'})
+            history_df = stock_prices.to_frame(name='value')
             metrics = calculate_metrics(history_df)
             results.append({'ticker': ticker, **metrics, 'note': note})
 
