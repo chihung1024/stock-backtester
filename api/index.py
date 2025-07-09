@@ -189,9 +189,11 @@ def scan_handler():
         results = []
         requested_start_date = pd.to_datetime(start_date_str)
         
+        # [CRITICAL FIX] 獲取實際下載到的股票代碼列表
         available_tickers = df_prices_raw.columns.tolist()
 
         for ticker in tickers:
+            # 如果請求的 ticker 不在下載到的資料中，直接標記為錯誤
             if ticker not in available_tickers:
                 results.append({'ticker': ticker, 'error': '找不到數據'})
                 continue
