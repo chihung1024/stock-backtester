@@ -3,11 +3,13 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from pandas.tseries.offsets import BDay, MonthEnd
+import sys
+from io import StringIO
 
 app = Flask(__name__)
 
 # --- 全域常數，提升可讀性與可維護性 ---
-RISK_FREE_RATE = 0
+RISK_FREE_RATE = 0.02
 DAYS_PER_YEAR = 365.25
 MONTHS_PER_YEAR = 12
 EPSILON = 1e-9 # 極小值，用於防止除以零的錯誤
@@ -111,6 +113,18 @@ def validate_data_completeness(df_prices_raw, all_tickers, requested_start_date)
             problematic_tickers.append({'ticker': ticker, 'start_date': first_valid_date.strftime('%Y-%m-%d')})
     return problematic_tickers
 
+def download_data_silently(tickers, start_date, end_date):
+    """
+    下載數據並抑制 yfinance 的輸出。
+    """
+    old_stdout = sys.stdout
+    sys.stdout = StringIO()
+    try:
+        data = yf.download(tickers, start=start_date, end=end_date, auto_adjust=True)['Close']
+    finally:
+        sys.stdout = old_stdout
+    return data
+
 # --- API 端點 ---
 
 @app.route('/api/backtest', methods=['POST'])
@@ -123,13 +137,12 @@ def backtest_handler():
         all_tickers = sorted(list(set(ticker for p in data['portfolios'] for ticker in p['tickers'])))
         if not all_tickers: return jsonify({'error': '請至少在一個投資組合中設定一項資產。'}), 400
         
-        df_prices_raw = yf.download(all_tickers, start=start_date_str, end=end_date_str, auto_adjust=True)['Close']
+        df_prices_raw = download_data_silently(all_tickers, start_date_str, end_date_str)
         if isinstance(df_prices_raw, pd.Series): df_prices_raw = df_prices_raw.to_frame(name=all_tickers[0])
         if df_prices_raw.isnull().all().any():
             failed_tickers = df_prices_raw.columns[df_prices_raw.isnull().all()].tolist()
             return jsonify({'error': f"無法獲取以下股票代碼的數據: {', '.join(failed_tickers)}"}), 400
         
-        # 使用輔助函式進行數據完整性檢查
         problematic_tickers_info = validate_data_completeness(df_prices_raw, all_tickers, pd.to_datetime(start_date_str))
         warning_message = None
         if problematic_tickers_info:
@@ -159,7 +172,7 @@ def scan_handler():
         if not tickers:
             return jsonify({'error': '股票代碼列表不可為空。'}), 400
 
-        df_prices_raw = yf.download(tickers, start=start_date_str, end=end_date_str, auto_adjust=True)['Close']
+        df_prices_raw = download_data_silently(tickers, start_date_str, end_date_str)
         if isinstance(df_prices_raw, pd.Series):
             df_prices_raw = df_prices_raw.to_frame(name=tickers[0])
 
@@ -167,7 +180,6 @@ def scan_handler():
         requested_start_date = pd.to_datetime(start_date_str)
 
         for ticker in tickers:
-            # 優化：直接操作 Series，避免產生不必要的 DataFrame
             stock_series = df_prices_raw.get(ticker)
 
             if stock_series is None or stock_series.isnull().all():
@@ -179,7 +191,6 @@ def scan_handler():
                 results.append({'ticker': ticker, 'error': '指定範圍內無數據'})
                 continue
 
-            # 使用輔助函式進行數據完整性檢查
             note = None
             problematic_info = validate_data_completeness(stock_prices.to_frame(), [ticker], requested_start_date)
             if problematic_info:
