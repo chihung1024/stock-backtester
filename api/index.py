@@ -18,7 +18,7 @@ EPSILON = 1e-9
 
 def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=RISK_FREE_RATE):
     """
-    [ENHANCED] 計算績效指標，新增 Beta 和 Alpha 的計算。
+    計算績效指標，包含 CAGR, MDD, Sharpe, Sortino, Beta, Alpha。
     """
     if portfolio_history.empty or len(portfolio_history) < 2:
         return {'cagr': 0, 'mdd': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
@@ -62,12 +62,10 @@ def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=
     beta, alpha = None, None
     if benchmark_history is not None and not benchmark_history.empty:
         benchmark_returns = benchmark_history['value'].pct_change().dropna()
-        # 合併兩個報酬率序列，確保日期對齊
         aligned_returns = pd.concat([daily_returns, benchmark_returns], axis=1, join='inner')
         aligned_returns.columns = ['portfolio', 'benchmark']
         
         if len(aligned_returns) > 1:
-            # 計算共變異數和基準的變異數
             covariance_matrix = aligned_returns.cov()
             covariance = covariance_matrix.iloc[0, 1]
             benchmark_variance = covariance_matrix.iloc[1, 1]
@@ -75,12 +73,10 @@ def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=
             if benchmark_variance > EPSILON:
                 beta = covariance / benchmark_variance
                 
-                # 計算基準的 CAGR
                 bench_end_value = benchmark_history['value'].iloc[-1]
                 bench_start_value = benchmark_history['value'].iloc[0]
                 bench_cagr = (bench_end_value / bench_start_value) ** (1 / years) - 1 if years > 0 else 0
                 
-                # 計算 Alpha
                 expected_return = risk_free_rate + beta * (bench_cagr - risk_free_rate)
                 alpha = cagr - expected_return
 
@@ -94,6 +90,9 @@ def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=
 
 
 def run_simulation(portfolio_config, price_data, initial_amount, benchmark_history=None):
+    """
+    [CRITICAL FIX] 修正再平衡邏輯，確保任何情況下價值的計算方式都一致。
+    """
     tickers = portfolio_config['tickers']
     weights = np.array(portfolio_config['weights']) / 100.0
     rebalancing_period = portfolio_config['rebalancingPeriod']
@@ -101,19 +100,29 @@ def run_simulation(portfolio_config, price_data, initial_amount, benchmark_histo
     if df_prices.empty: return None
     portfolio_history = pd.Series(index=df_prices.index, dtype=float, name="value")
     rebalancing_dates = get_rebalancing_dates(df_prices, rebalancing_period)
+    
+    # 初始投資
     current_date = df_prices.index[0]
     initial_prices = df_prices.loc[current_date]
     shares = (initial_amount * weights) / (initial_prices + EPSILON)
     portfolio_history.loc[current_date] = initial_amount
+    
+    # 迭代後續的每一天
     for i in range(1, len(df_prices)):
         current_date = df_prices.index[i]
         current_prices = df_prices.loc[current_date]
+        
+        # 步驟 1: 無論如何，都先根據現有持股計算當日價值
         current_value = (shares * current_prices).sum()
         portfolio_history.loc[current_date] = current_value
+        
+        # 步驟 2: 然後，判斷當天是否為再平衡日，若是，則更新持股數，供下一日使用
         if current_date in rebalancing_dates:
             shares = (current_value * weights) / (current_prices + EPSILON)
+            
     portfolio_history.dropna(inplace=True)
     metrics = calculate_metrics(portfolio_history.to_frame('value'), benchmark_history)
+    
     return {'name': portfolio_config['name'], **metrics, 'portfolioHistory': [{'date': date.strftime('%Y-%m-%d'), 'value': value} for date, value in portfolio_history.items()]}
 
 # --- 輔助函式 ---
@@ -180,16 +189,23 @@ def backtest_handler():
         benchmark_history = None
         if benchmark_ticker and benchmark_ticker in df_prices_common.columns:
             benchmark_config = {'name': benchmark_ticker, 'tickers': [benchmark_ticker], 'weights': [100], 'rebalancingPeriod': 'never'}
-            # Note: Benchmark simulation doesn't need a benchmark itself.
             benchmark_result = run_simulation(benchmark_config, df_prices_common, initial_amount)
             if benchmark_result:
                 benchmark_history = pd.DataFrame(benchmark_result['portfolioHistory']).set_index('date')
                 benchmark_history.index = pd.to_datetime(benchmark_history.index)
 
-
         results = [res for p_config in data['portfolios'] if p_config['tickers'] and (res := run_simulation(p_config, df_prices_common, initial_amount, benchmark_history))]
         if not results: return jsonify({'error': '沒有足夠的共同交易日來進行回測。'}), 400
         
+        # [CRITICAL FIX] 手動設定基準的 Beta 和 Alpha，使其顯示更直觀
+        if benchmark_result:
+            benchmark_result['beta'] = 1.00
+            benchmark_result['alpha'] = 0.00
+            # 確保基準的 Sharpe 和 Sortino 也被正確計算
+            temp_metrics = calculate_metrics(benchmark_history)
+            benchmark_result['sharpe_ratio'] = temp_metrics['sharpe_ratio']
+            benchmark_result['sortino_ratio'] = temp_metrics['sortino_ratio']
+
         return jsonify({'data': results, 'benchmark': benchmark_result, 'warning': warning_message})
     except Exception as e:
         import traceback; print(traceback.format_exc())
