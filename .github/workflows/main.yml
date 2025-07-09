@@ -26,8 +26,8 @@ jobs:
         run: python update_data.py
 
       - name: Update Gist with new data
-        uses: exuanbo/actions-sync-gist@v2
+        uses: joshuacurtis/sync-to-gist-action@v1
         with:
-          token: ${{ secrets.GIST_SECRET }}
-          gist_id: ${{ secrets.GIST_ID }}
-          file_path: 'preprocessed_data.json'
+          file-path: 'preprocessed_data.json'
+          gist-id: ${{ secrets.GIST_ID }}
+          gist-token: ${{ secrets.GIST_SECRET }}
