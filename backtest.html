@@ -127,7 +127,7 @@
         <!-- Stock Screener Section -->
         <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
             <h2 class="text-2xl font-bold mb-6 border-b pb-4">個股快速績效掃描</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div class="md:col-span-2">
                     <div class="flex justify-between items-center">
                         <label for="ticker-list-input" class="block text-sm font-medium text-gray-700">輸入股票代碼 (以逗號分隔)</label>
@@ -156,6 +156,10 @@
                             <select id="scan-endMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
                         </div>
                     </div>
+                </div>
+                 <div>
+                    <label for="scan-benchmark" class="block text-sm font-medium text-gray-700">比較基準</label>
+                    <input type="text" id="scan-benchmark" value="SPY" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase" placeholder="例如: SPY">
                 </div>
             </div>
             <div class="mt-6">
@@ -402,6 +406,7 @@
 
             const payload = {
                 tickers: tickers,
+                benchmark: document.getElementById('scan-benchmark').value.trim().toUpperCase(),
                 startYear: document.getElementById('scan-startYear').value,
                 startMonth: document.getElementById('scan-startMonth').value,
                 endYear: document.getElementById('scan-endYear').value,
@@ -464,6 +469,8 @@
                 { key: 'mdd', label: '最大回撤 (MDD)'},
                 { key: 'sharpe_ratio', label: '夏普比率'},
                 { key: 'sortino_ratio', label: '索提諾比率'},
+                { key: 'beta', label: 'Beta (β)'},
+                { key: 'alpha', label: 'Alpha (α)'}
             ];
 
             const formatters = {
@@ -472,6 +479,8 @@
                 mdd: (v) => `${(v * 100).toFixed(2)}%`,
                 sharpe_ratio: (v) => isFinite(v) ? v.toFixed(2) : 'N/A',
                 sortino_ratio: (v) => isFinite(v) ? v.toFixed(2) : 'N/A',
+                beta: (v) => v !== null ? v.toFixed(2) : 'N/A',
+                alpha: (v) => v !== null ? `${(v * 100).toFixed(2)}%` : 'N/A'
             };
 
             const thead = scanSummaryTable.createTHead();
@@ -505,7 +514,7 @@
                         cell.className = 'text-gray-400';
                     } else {
                         cell.textContent = formatters[metric.key](res[metric.key]);
-                        if (['cagr', 'sharpe_ratio', 'sortino_ratio'].includes(metric.key)) cell.className = 'text-green-600 font-medium';
+                        if (['cagr', 'sharpe_ratio', 'sortino_ratio', 'alpha'].includes(metric.key)) cell.className = 'text-green-600 font-medium';
                         if (['mdd', 'volatility'].includes(metric.key)) cell.className = 'text-red-600 font-medium';
                     }
                 });
