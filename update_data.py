@@ -3,19 +3,19 @@ import yfinance as yf
 import json
 import time
 
-def get_sp500_tickers():
-    """從維基百科獲取 S&P 500 成分股列表"""
-    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    tables = pd.read_html(url)
-    sp500_table = tables[0]
-    return sp500_table['Symbol'].tolist()
-
-def get_nasdaq100_tickers():
-    """從維基百科獲取 NASDAQ 100 成分股列表"""
-    url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
-    tables = pd.read_html(url)
-    nasdaq100_table = tables[4] 
-    return nasdaq100_table['Ticker'].tolist()
+def get_etf_holdings(etf_ticker):
+    """從指定的 ETF 獲取其成分股列表"""
+    try:
+        etf = yf.Ticker(etf_ticker)
+        holdings = etf.holdings
+        if holdings is not None and not holdings.empty:
+            return holdings['symbol'].tolist()
+        else:
+            print(f"警告：無法從 {etf_ticker} 獲取持股數據。")
+            return []
+    except Exception as e:
+        print(f"獲取 {etf_ticker} 持股時發生錯誤: {e}")
+        return []
 
 def get_stock_info(ticker_str):
     """使用 yfinance 獲取股票的詳細財務資訊"""
@@ -39,11 +39,15 @@ def get_stock_info(ticker_str):
 
 def main():
     """主執行函式"""
-    print("開始獲取指數成分股...")
-    sp500_tickers = set(get_sp500_tickers())
-    nasdaq100_tickers = set(get_nasdaq100_tickers())
+    print("開始從 ETF 獲取指數成分股...")
+    sp500_tickers = set(get_etf_holdings("VOO"))
+    nasdaq100_tickers = set(get_etf_holdings("QQQ"))
     all_unique_tickers = sorted(list(sp500_tickers.union(nasdaq100_tickers)))
     
+    if not all_unique_tickers:
+        print("錯誤：無法獲取任何成分股，終止執行。")
+        return
+
     print(f"總共找到 {len(all_unique_tickers)} 支不重複的股票。")
     
     all_stock_data = []
