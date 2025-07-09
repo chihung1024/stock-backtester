@@ -146,8 +146,11 @@ def scan_handler():
             df_prices_raw = df_prices_raw.to_frame(name=tickers[0])
 
         results = []
+        requested_start_date = pd.to_datetime(start_date_str)
+
         for ticker in tickers:
-            if ticker not in df_prices_raw.columns:
+            note = None
+            if ticker not in df_prices_raw.columns or df_prices_raw[ticker].isnull().all():
                 results.append({'ticker': ticker, 'error': 'No data found'})
                 continue
 
@@ -156,9 +159,14 @@ def scan_handler():
                 results.append({'ticker': ticker, 'error': 'No data in range'})
                 continue
 
+            # Check for shortened period and create a note
+            actual_start_date = stock_prices.index[0]
+            if actual_start_date > requested_start_date + BDay(5):
+                note = f"(從 {actual_start_date.strftime('%Y-%m-%d')} 開始)"
+
             history_df = stock_prices.rename(columns={ticker: 'value'})
             metrics = calculate_metrics(history_df)
-            results.append({'ticker': ticker, **metrics})
+            results.append({'ticker': ticker, **metrics, 'note': note})
 
         return jsonify(results)
 
