@@ -127,7 +127,7 @@
         <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
             <h2 class="text-2xl font-bold mb-6 border-b pb-4">個股快速績效掃描</h2>
             
-            <!-- NEW: Pre-Screener -->
+            <!-- Pre-Screener -->
             <div class="bg-gray-50 p-4 rounded-lg mb-6 border">
                  <h3 class="text-lg font-semibold mb-3 text-gray-800">預篩選器</h3>
                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -136,6 +136,7 @@
                          <select id="screener-index" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                              <option value="sp500" selected>S&P 500</option>
                              <option value="nasdaq100">NASDAQ 100</option>
+                             <option value="russell3000">Russell 3000</option>
                          </select>
                      </div>
                      <div>
@@ -273,7 +274,7 @@
             endMonthSelect.value = new Date().getMonth() + 1;
         }
         
-        // --- PORTFOLIO GRID LOGIC (abbreviated for clarity) ---
+        // --- PORTFOLIO GRID LOGIC (abbreviated) ---
         function renderGrid() { /* ... existing code ... */ }
         function renderFooter() { /* ... existing code ... */ }
         function attachGridEventListeners() { /* ... existing code ... */ }
@@ -292,12 +293,12 @@
         async function runScreener() {
             screenerErrorContainer.innerHTML = '';
             const originalBtnText = runScreenerBtn.innerHTML;
-            runScreenerBtn.innerHTML = `<div class="loader-small mx-auto"></div> 正在篩選...`;
+            runScreenerBtn.innerHTML = `<div class="loader-small mx-auto" style="width:20px; height:20px; border-width:3px;"></div> 正在篩選...`;
             runScreenerBtn.disabled = true;
 
             const payload = {
                 index: document.getElementById('screener-index').value,
-                minMarketCap: parseFloat(document.getElementById('screener-mktcap').value) * 1e8, // Convert B to raw number
+                minMarketCap: parseFloat(document.getElementById('screener-mktcap').value) * 1e8,
                 sector: document.getElementById('screener-sector').value,
             };
 
@@ -320,13 +321,13 @@
             }
         }
 
-        // --- BACKTEST LOGIC ---
+        // --- BACKTEST LOGIC (abbreviated) ---
         async function runBacktest() { /* ... existing code ... */ }
         function displayResults(result) { /* ... existing code ... */ }
         function renderSummaryTable(portfolios, benchmark) { /* ... existing code ... */ }
         function renderChart(portfolios, benchmark) { /* ... existing code ... */ }
 
-        // --- SCANNER LOGIC ---
+        // --- SCANNER LOGIC (abbreviated) ---
         async function runScan() { /* ... existing code ... */ }
         function handleSortScanTable(key, initial = false) { /* ... existing code ... */ }
         function renderScanTable(results) { /* ... existing code ... */ }
