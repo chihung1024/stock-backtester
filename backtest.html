@@ -38,7 +38,7 @@
         <!-- Portfolio Backtester Section -->
         <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
             <h2 class="text-2xl font-bold mb-6 border-b pb-4">投資組合回測</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                  <div>
                     <label for="initialAmount" class="block text-sm font-medium text-gray-700">初始投資金額 ($)</label>
                     <input type="number" id="initialAmount" value="10000" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
@@ -73,10 +73,6 @@
                         <option value="quarterly">每季</option>
                         <option value="monthly">每月</option>
                     </select>
-                </div>
-                <div>
-                    <label for="benchmark" class="block text-sm font-medium text-gray-700">比較基準</label>
-                    <input type="text" id="benchmark" value="SPY" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase" placeholder="例如: SPY">
                 </div>
                  <div>
                     <label class="block text-sm font-medium text-gray-700">股息再投入 <span class="info-icon">ⓘ<span class="tooltip">yfinance 的調整後股價已隱含股息再投入的總報酬，此為標準回測方法。</span></span></label>
@@ -191,9 +187,13 @@
         let scanResultsData = []; // To store scanner results for sorting
         let scanSortState = { key: 'cagr', direction: 'desc' }; // Default sort state
         const COLORS = ['#4f46e5', '#db2777', '#16a34a', '#d97706', '#0891b2'];
-        const SP500_TICKERS = [
+        
+        // FIX: Use a Set to store unique tickers, then convert back to an array.
+        const SP500_TICKERS_RAW = [
             'MSFT', 'AAPL', 'NVDA', 'GOOGL', 'AMZN', 'GOOG', 'META', 'BRK-B', 'LLY', 'AVGO', 'JPM', 'TSLA', 'V', 'XOM', 'UNH', 'WMT', 'MA', 'PG', 'JNJ', 'HD', 'COST', 'MRK', 'ABBV', 'CRM', 'CVX', 'BAC', 'NFLX', 'AMD', 'KO', 'PEP', 'ADBE', 'LIN', 'WFC', 'TMO', 'CSCO', 'ACN', 'MCD', 'DIS', 'QCOM', 'ABT', 'GE', 'CAT', 'INTC', 'AMAT', 'PFE', 'IBM', 'ORCL', 'CMCSA', 'DHR', 'VZ', 'UBER', 'INTU', 'COP', 'NOW', 'UNP', 'TXN', 'AMGN', 'PM', 'SPGI', 'HON', 'LOW', 'AXP', 'RTX', 'PLD', 'SBUX', 'ISRG', 'BA', 'BLK', 'GS', 'ETN', 'PGR', 'ELV', 'NEE', 'LMT', 'TJX', 'SYK', 'C', 'LRCX', 'SCHW', 'REGN', 'BSX', 'AMT', 'ADP', 'MDLZ', 'GILD', 'CVS', 'MMC', 'VRTX', 'ADI', 'FI', 'CI', 'ZTS', 'MO', 'SO', 'DUK', 'T', 'PYPL', 'PANW', 'BMY', 'EOG', 'SLB', 'CB', 'AON', 'ETR', 'MPC', 'DE', 'ABNB', 'PNC', 'MS', 'CL', 'MAR', 'ICE', 'SHW', 'MDT', 'NKE', 'EQIX', 'PSX', 'CMG', 'ORLY', 'APH', 'GD', 'FCX', 'ROP', 'ITW', 'USB', 'MU', 'CME', 'TDG', 'OXY', 'BDX', 'MMM', 'CSX', 'NSC', 'BKNG', 'GPN', 'HUM', 'SNPS', 'ADSK', 'F', 'KLAC', 'APD', 'DXCM', 'HCA', 'AIG', 'FDX', 'WM', 'EXC', 'TEL', 'ECL', 'TGT', 'PH', 'PCAR', 'MCO', 'CDNS', 'ROP', 'STZ', 'AFL', 'MET', 'EMR', 'CTAS', 'NOC', 'TRV', 'PCG', 'PEG', 'SRE', 'WELL', 'D', 'AEP', 'O', 'PSA', 'CCI', 'USB', 'PPL', 'KMI', 'WEC', 'XEL', 'ES', 'ED', 'CNP', 'FE', 'DTE', 'AWK', 'OKE', 'ETR', 'HES', 'DVN', 'HAL', 'BKR', 'WMB', 'FANG', 'MRO', 'APA', 'KHC', 'K', 'GIS', 'CPB', 'CAG', 'SJM', 'TSN', 'HRL', 'MKC', 'ADM', 'BG', 'DD', 'LYB', 'DOW', 'NEM', 'GOLD', 'FCX', 'SCCO', 'MOS', 'CF', 'IFF', 'ALB', 'FMC', 'CE', 'EMN', 'PPG', 'SHW', 'AVY', 'BALL', 'WRK', 'PKG', 'IP', 'SEE', 'BLL', 'GEV', 'JCI', 'TT', 'GNRC', 'IR', 'CARR', 'OTIS', 'DOV', 'GWW', 'ROP', 'PH', 'ITW', 'AME', 'ROK', 'ETN', 'EMR', 'HON', 'GE', 'CAT', 'DE', 'PCAR', 'CMI', 'JBL', 'GLW', 'FLEX', 'VNT', 'TER', 'KEYS', 'MSI', 'HPQ', 'HPE', 'NTAP', 'STX', 'WDC', 'ANET', 'ZBRA', 'JNPR', 'FFIV', 'GLW', 'UDR', 'AVB', 'EQR', 'MAA', 'ESS', 'CPT', 'INVH', 'BXP', 'VNO', 'SLG', 'ARE', 'DLR', 'EQIX', 'AMT', 'CCI', 'PLD', 'PSA', 'SBAC', 'WY', 'DRE', 'FRT', 'REG', 'KIM', 'SPG', 'MAC', 'AIV', 'PEAK', 'VTR', 'WELL', 'HCP', 'OHI', 'MPW', 'EXR', 'CUBE', 'LSI', 'IRM', 'LAMR', 'OUT', 'PXD', 'FANG', 'EOG', 'COP', 'DVN', 'HES', 'MRO', 'OXY', 'APA', 'MUR', 'CTRA', 'CHK', 'SWN', 'AR', 'RRC', 'EQT', 'COG', 'NFG', 'CNX', 'ARCH', 'BTU', 'CEIX', 'METC', 'TRGP', 'WES', 'ENLC', 'PAA', 'EPD', 'ET', 'KMI', 'MPLX', 'OKE', 'WMB', 'TRP', 'ENB', 'DAL', 'UAL', 'AAL', 'LUV', 'ALK', 'JBLU', 'SAVE', 'HA', 'EXPE', 'BKNG', 'MAR', 'HLT', 'H', 'WYNN', 'LVS', 'MGM', 'RCL', 'CCL', 'NCLH', 'SABR', 'TRIP', 'CHTR', 'CMCSA', 'DIS', 'FOXA', 'FOX', 'FWONA', 'FWONK', 'LYV', 'NFLX', 'PARA', 'WBD', 'DISCA', 'DISCK', 'T', 'VZ', 'TMUS', 'S', 'DISH', 'IHRT', 'SIRI', 'OMC', 'IPG', 'NWSA', 'NWS'
         ];
+        const SP500_TICKERS = [...new Set(SP500_TICKERS_RAW)];
+
 
         // --- DOM ELEMENTS ---
         const gridHead = document.querySelector('#portfolio-grid thead');
@@ -306,7 +306,6 @@
                 startYear: document.getElementById('startYear').value, startMonth: document.getElementById('startMonth').value,
                 endYear: document.getElementById('endYear').value, endMonth: document.getElementById('endMonth').value,
                 rebalancingPeriod: document.getElementById('rebalancingPeriod').value,
-                benchmark: document.getElementById('benchmark').value.trim().toUpperCase(),
                 portfolios: []
             };
             portfolios.forEach(p => {
@@ -322,57 +321,42 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error || `HTTP 錯誤: ${response.status}`);
                 if (result.warning) { warningContainer.innerHTML = `<div class="warning-message" role="alert"><p class="font-bold">請注意</p><p>${result.warning}</p></div>`; }
-                displayResults(result); 
+                displayResults(result.data); 
                 resultsContent.classList.remove('hidden');
             } catch (error) { displayError(errorContainer, error.message); resultsPanel.classList.add('hidden'); } finally { loader.classList.add('hidden'); }
         }
 
-        function displayResults(result) {
-            renderSummaryTable(result.data, result.benchmark);
-            renderChart(result.data, result.benchmark);
+        function displayResults(results) {
+            renderSummaryTable(results);
+            renderChart(results);
         }
 
-        function renderSummaryTable(portfolios, benchmark) {
+        function renderSummaryTable(results) {
             const table = document.getElementById('summary-table'); table.innerHTML = '';
             const metrics = [ { key: 'cagr', label: '年化報酬率 (CAGR)', format: (v) => `${(v * 100).toFixed(2)}%` }, { key: 'mdd', label: '最大回撤 (MDD)', format: (v) => `${(v * 100).toFixed(2)}%` }, { key: 'sharpe_ratio', label: '夏普比率', format: (v) => isFinite(v) ? v.toFixed(2) : 'N/A' }, { key: 'sortino_ratio', label: '索提諾比率', format: (v) => isFinite(v) ? v.toFixed(2) : 'N/A' }, ];
             const thead = table.createTHead(); const headerRow = thead.insertRow(); headerRow.className = "bg-gray-100";
             headerRow.insertCell().outerHTML = `<th class="text-left pl-2">指標</th>`;
-            portfolios.forEach(p => headerRow.insertCell().outerHTML = `<th>${p.name}</th>`);
-            if (benchmark) { headerRow.insertCell().outerHTML = `<th class="bg-gray-200">${benchmark.name} (基準)</th>`; }
+            results.forEach(p => headerRow.insertCell().outerHTML = `<th>${p.name}</th>`);
             
             const tbody = table.createTBody();
             metrics.forEach(metric => {
                 const row = tbody.insertRow();
                 row.insertCell().outerHTML = `<td class="font-semibold text-left pl-2">${metric.label}</td>`;
-                portfolios.forEach(p => {
+                results.forEach(p => {
                     const cell = row.insertCell();
                     cell.textContent = metric.format(p[metric.key]);
                     if (metric.key === 'cagr' || metric.key === 'sharpe_ratio' || metric.key === 'sortino_ratio') cell.className = 'text-green-600 font-medium';
                     if (metric.key === 'mdd') cell.className = 'text-red-600 font-medium';
                 });
-                if (benchmark) {
-                    const cell = row.insertCell();
-                    cell.textContent = metric.format(benchmark[metric.key]);
-                    cell.className = "bg-gray-50";
-                }
             });
         }
-        function renderChart(portfolios, benchmark) {
+        function renderChart(results) {
             const ctx = document.getElementById('portfolio-chart').getContext('2d');
-            const datasets = portfolios.map((p, i) => ({
+            const datasets = results.map((p, i) => ({
                 label: p.name, data: p.portfolioHistory, borderColor: COLORS[i % COLORS.length],
                 borderWidth: 2, pointRadius: 0, fill: false, tension: 0.1,
                 parsing: { xAxisKey: 'date', yAxisKey: 'value' }
             }));
-
-            if (benchmark) {
-                datasets.push({
-                    label: `${benchmark.name} (基準)`, data: benchmark.portfolioHistory,
-                    borderColor: '#374151', borderDash: [5, 5], borderWidth: 2,
-                    pointRadius: 0, fill: false, tension: 0.1,
-                    parsing: { xAxisKey: 'date', yAxisKey: 'value' }
-                });
-            }
 
             if (chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { type: 'logarithmic', ticks: { callback: (value) => '$' + value.toLocaleString() } } }, plugins: { tooltip: { mode: 'index', intersect: false, itemSort: (a, b) => b.parsed.y - a.parsed.y, callbacks: { label: (context) => { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.y !== null) { label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y); } return label; } } } } } });
