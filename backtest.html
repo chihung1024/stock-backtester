@@ -38,7 +38,7 @@
         <!-- Portfolio Backtester Section -->
         <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
             <h2 class="text-2xl font-bold mb-6 border-b pb-4">投資組合回測</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                  <div>
                     <label for="initialAmount" class="block text-sm font-medium text-gray-700">初始投資金額 ($)</label>
                     <input type="number" id="initialAmount" value="10000" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
@@ -73,6 +73,10 @@
                         <option value="quarterly">每季</option>
                         <option value="monthly">每月</option>
                     </select>
+                </div>
+                <div>
+                    <label for="benchmark" class="block text-sm font-medium text-gray-700">比較基準</label>
+                    <input type="text" id="benchmark" value="SPY" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase" placeholder="例如: SPY">
                 </div>
                  <div>
                     <label class="block text-sm font-medium text-gray-700">股息再投入 <span class="info-icon">ⓘ<span class="tooltip">yfinance 的調整後股價已隱含股息再投入的總報酬，此為標準回測方法。</span></span></label>
@@ -285,7 +289,9 @@
                 initialAmount: parseFloat(document.getElementById('initialAmount').value),
                 startYear: document.getElementById('startYear').value, startMonth: document.getElementById('startMonth').value,
                 endYear: document.getElementById('endYear').value, endMonth: document.getElementById('endMonth').value,
-                rebalancingPeriod: document.getElementById('rebalancingPeriod').value, portfolios: []
+                rebalancingPeriod: document.getElementById('rebalancingPeriod').value,
+                benchmark: document.getElementById('benchmark').value.trim().toUpperCase(),
+                portfolios: []
             };
             portfolios.forEach(p => {
                 const portfolioConfig = { name: p.name, tickers: [], weights: [], rebalancingPeriod: payload.rebalancingPeriod };
@@ -300,20 +306,58 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error || `HTTP 錯誤: ${response.status}`);
                 if (result.warning) { warningContainer.innerHTML = `<div class="warning-message" role="alert"><p class="font-bold">請注意</p><p>${result.warning}</p></div>`; }
-                displayResults(result.data); resultsContent.classList.remove('hidden');
+                displayResults(result); 
+                resultsContent.classList.remove('hidden');
             } catch (error) { displayError(errorContainer, error.message); resultsPanel.classList.add('hidden'); } finally { loader.classList.add('hidden'); }
         });
-        function displayResults(results) { renderSummaryTable(results); renderChart(results); }
-        function renderSummaryTable(results) {
+
+        function displayResults(result) {
+            renderSummaryTable(result.data, result.benchmark);
+            renderChart(result.data, result.benchmark);
+        }
+
+        function renderSummaryTable(portfolios, benchmark) {
             const table = document.getElementById('summary-table'); table.innerHTML = '';
             const metrics = [ { key: 'cagr', label: '年化報酬率 (CAGR)', format: (v) => `${(v * 100).toFixed(2)}%` }, { key: 'mdd', label: '最大回撤 (MDD)', format: (v) => `${(v * 100).toFixed(2)}%` }, { key: 'sharpe_ratio', label: '夏普比率', format: (v) => isFinite(v) ? v.toFixed(2) : 'N/A' }, { key: 'sortino_ratio', label: '索提諾比率', format: (v) => isFinite(v) ? v.toFixed(2) : 'N/A' }, ];
-            const thead = table.createTHead(); const headerRow = thead.insertRow(); headerRow.className = "bg-gray-100"; headerRow.insertCell().outerHTML = `<th class="text-left pl-2">指標</th>`; results.forEach(p => headerRow.insertCell().outerHTML = `<th>${p.name}</th>`);
+            const thead = table.createTHead(); const headerRow = thead.insertRow(); headerRow.className = "bg-gray-100";
+            headerRow.insertCell().outerHTML = `<th class="text-left pl-2">指標</th>`;
+            portfolios.forEach(p => headerRow.insertCell().outerHTML = `<th>${p.name}</th>`);
+            if (benchmark) { headerRow.insertCell().outerHTML = `<th class="bg-gray-200">${benchmark.name} (基準)</th>`; }
+            
             const tbody = table.createTBody();
-            metrics.forEach(metric => { const row = tbody.insertRow(); row.insertCell().outerHTML = `<td class="font-semibold text-left pl-2">${metric.label}</td>`; results.forEach(p => { const cell = row.insertCell(); cell.textContent = metric.format(p[metric.key]); if (metric.key === 'cagr' || metric.key === 'sharpe_ratio' || metric.key === 'sortino_ratio') cell.className = 'text-green-600 font-medium'; if (metric.key === 'mdd') cell.className = 'text-red-600 font-medium'; }); });
+            metrics.forEach(metric => {
+                const row = tbody.insertRow();
+                row.insertCell().outerHTML = `<td class="font-semibold text-left pl-2">${metric.label}</td>`;
+                portfolios.forEach(p => {
+                    const cell = row.insertCell();
+                    cell.textContent = metric.format(p[metric.key]);
+                    if (metric.key === 'cagr' || metric.key === 'sharpe_ratio' || metric.key === 'sortino_ratio') cell.className = 'text-green-600 font-medium';
+                    if (metric.key === 'mdd') cell.className = 'text-red-600 font-medium';
+                });
+                if (benchmark) {
+                    const cell = row.insertCell();
+                    cell.textContent = metric.format(benchmark[metric.key]);
+                    cell.className = "bg-gray-50";
+                }
+            });
         }
-        function renderChart(results) {
+        function renderChart(portfolios, benchmark) {
             const ctx = document.getElementById('portfolio-chart').getContext('2d');
-            const datasets = results.map((p, i) => ({ label: p.name, data: p.portfolioHistory, borderColor: COLORS[i % COLORS.length], backgroundColor: `${COLORS[i % COLORS.length]}1a`, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.1, parsing: { xAxisKey: 'date', yAxisKey: 'value' } }));
+            const datasets = portfolios.map((p, i) => ({
+                label: p.name, data: p.portfolioHistory, borderColor: COLORS[i % COLORS.length],
+                borderWidth: 2, pointRadius: 0, fill: false, tension: 0.1,
+                parsing: { xAxisKey: 'date', yAxisKey: 'value' }
+            }));
+
+            if (benchmark) {
+                datasets.push({
+                    label: `${benchmark.name} (基準)`, data: benchmark.portfolioHistory,
+                    borderColor: '#374151', borderDash: [5, 5], borderWidth: 2,
+                    pointRadius: 0, fill: false, tension: 0.1,
+                    parsing: { xAxisKey: 'date', yAxisKey: 'value' }
+                });
+            }
+
             if (chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'year' } }, y: { type: 'logarithmic', ticks: { callback: (value) => '$' + value.toLocaleString() } } }, plugins: { tooltip: { mode: 'index', intersect: false, itemSort: (a, b) => b.parsed.y - a.parsed.y, callbacks: { label: (context) => { let label = context.dataset.label || ''; if (label) label += ': '; if (context.parsed.y !== null) { label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y); } return label; } } } } } });
         }
@@ -368,19 +412,14 @@
                 scanSortState.direction = scanSortState.direction === 'asc' ? 'desc' : 'asc';
             } else {
                 scanSortState.key = key;
-                // For MDD, ascending sort is more intuitive (less negative is better)
-                // For others, descending sort is more intuitive (higher is better)
                 scanSortState.direction = (key === 'mdd') ? 'asc' : 'desc';
             }
 
             scanResultsData.sort((a, b) => {
-                // Handle cases where data might be erroneous
                 if (a.error) return 1;
                 if (b.error) return -1;
-                
                 const valA = a[key];
                 const valB = b[key];
-
                 if (scanSortState.direction === 'asc') {
                     return valA - valB;
                 } else {
