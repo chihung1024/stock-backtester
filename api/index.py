@@ -18,17 +18,17 @@ EPSILON = 1e-9
 
 def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=RISK_FREE_RATE):
     """
-    計算績效指標，包含 CAGR, MDD, Sharpe, Sortino, Beta, Alpha。
+    [ENHANCED] 計算績效指標，新增年化波動率。
     """
     if portfolio_history.empty or len(portfolio_history) < 2:
-        return {'cagr': 0, 'mdd': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
+        return {'cagr': 0, 'mdd': 0, 'volatility': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
 
     # --- 基本指標 (CAGR, MDD) ---
     end_value = portfolio_history['value'].iloc[-1]
     start_value = portfolio_history['value'].iloc[0]
     
     if start_value < EPSILON:
-        return {'cagr': 0, 'mdd': -1, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
+        return {'cagr': 0, 'mdd': -1, 'volatility': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
 
     start_date = portfolio_history.index[0]
     end_date = portfolio_history.index[-1]
@@ -43,10 +43,12 @@ def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=
     daily_returns = portfolio_history['value'].pct_change().dropna()
 
     if len(daily_returns) < 2:
-        return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
+        return {'cagr': cagr, 'mdd': mdd, 'volatility': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
+
+    # --- 新增：年化波動率 ---
+    annual_std = daily_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
 
     annualized_excess_return = cagr - risk_free_rate
-    annual_std = daily_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
     sharpe_ratio = annualized_excess_return / (annual_std + EPSILON)
 
     daily_risk_free_rate = (1 + risk_free_rate)**(1/TRADING_DAYS_PER_YEAR) - 1
@@ -86,13 +88,10 @@ def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=
     if beta is not None and (not np.isfinite(beta) or np.isnan(beta)): beta = None
     if alpha is not None and (not np.isfinite(alpha) or np.isnan(alpha)): alpha = None
 
-    return {'cagr': cagr, 'mdd': mdd, 'sharpe_ratio': sharpe_ratio, 'sortino_ratio': sortino_ratio, 'beta': beta, 'alpha': alpha}
+    return {'cagr': cagr, 'mdd': mdd, 'volatility': annual_std, 'sharpe_ratio': sharpe_ratio, 'sortino_ratio': sortino_ratio, 'beta': beta, 'alpha': alpha}
 
 
 def run_simulation(portfolio_config, price_data, initial_amount, benchmark_history=None):
-    """
-    [CRITICAL FIX] 修正再平衡邏輯，確保任何情況下價值的計算方式都一致。
-    """
     tickers = portfolio_config['tickers']
     weights = np.array(portfolio_config['weights']) / 100.0
     rebalancing_period = portfolio_config['rebalancingPeriod']
@@ -101,22 +100,18 @@ def run_simulation(portfolio_config, price_data, initial_amount, benchmark_histo
     portfolio_history = pd.Series(index=df_prices.index, dtype=float, name="value")
     rebalancing_dates = get_rebalancing_dates(df_prices, rebalancing_period)
     
-    # 初始投資
     current_date = df_prices.index[0]
     initial_prices = df_prices.loc[current_date]
     shares = (initial_amount * weights) / (initial_prices + EPSILON)
     portfolio_history.loc[current_date] = initial_amount
     
-    # 迭代後續的每一天
     for i in range(1, len(df_prices)):
         current_date = df_prices.index[i]
         current_prices = df_prices.loc[current_date]
         
-        # 步驟 1: 無論如何，都先根據現有持股計算當日價值
         current_value = (shares * current_prices).sum()
         portfolio_history.loc[current_date] = current_value
         
-        # 步驟 2: 然後，判斷當天是否為再平衡日，若是，則更新持股數，供下一日使用
         if current_date in rebalancing_dates:
             shares = (current_value * weights) / (current_prices + EPSILON)
             
@@ -197,14 +192,11 @@ def backtest_handler():
         results = [res for p_config in data['portfolios'] if p_config['tickers'] and (res := run_simulation(p_config, df_prices_common, initial_amount, benchmark_history))]
         if not results: return jsonify({'error': '沒有足夠的共同交易日來進行回測。'}), 400
         
-        # [CRITICAL FIX] 手動設定基準的 Beta 和 Alpha，使其顯示更直觀
         if benchmark_result:
             benchmark_result['beta'] = 1.00
             benchmark_result['alpha'] = 0.00
-            # 確保基準的 Sharpe 和 Sortino 也被正確計算
             temp_metrics = calculate_metrics(benchmark_history)
-            benchmark_result['sharpe_ratio'] = temp_metrics['sharpe_ratio']
-            benchmark_result['sortino_ratio'] = temp_metrics['sortino_ratio']
+            benchmark_result.update(temp_metrics)
 
         return jsonify({'data': results, 'benchmark': benchmark_result, 'warning': warning_message})
     except Exception as e:
