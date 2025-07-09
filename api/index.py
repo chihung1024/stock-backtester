@@ -18,7 +18,7 @@ EPSILON = 1e-9
 
 def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=RISK_FREE_RATE):
     """
-    [ENHANCED] 計算績效指標，新增年化波動率。
+    計算績效指標，包含 CAGR, MDD, Volatility, Sharpe, Sortino, Beta, Alpha。
     """
     if portfolio_history.empty or len(portfolio_history) < 2:
         return {'cagr': 0, 'mdd': 0, 'volatility': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
@@ -45,9 +45,7 @@ def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=
     if len(daily_returns) < 2:
         return {'cagr': cagr, 'mdd': mdd, 'volatility': 0, 'sharpe_ratio': 0, 'sortino_ratio': 0, 'beta': None, 'alpha': None}
 
-    # --- 新增：年化波動率 ---
     annual_std = daily_returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
-
     annualized_excess_return = cagr - risk_free_rate
     sharpe_ratio = annualized_excess_return / (annual_std + EPSILON)
 
@@ -208,6 +206,7 @@ def scan_handler():
     try:
         data = request.get_json()
         tickers = data['tickers']
+        benchmark_ticker = data.get('benchmark')
         start_date_str = f"{data['startYear']}-{data['startMonth']}-01"
         end_date = pd.to_datetime(f"{data['endYear']}-{data['endMonth']}-01") + MonthEnd(0)
         end_date_str = end_date.strftime('%Y-%m-%d')
@@ -215,10 +214,20 @@ def scan_handler():
         if not tickers:
             return jsonify({'error': '股票代碼列表不可為空。'}), 400
 
-        df_prices_raw = download_data_silently(tickers, start_date_str, end_date_str)
-        if isinstance(df_prices_raw, pd.Series):
-            df_prices_raw = df_prices_raw.to_frame(name=tickers[0])
+        all_tickers_to_download = set(tickers)
+        if benchmark_ticker:
+            all_tickers_to_download.add(benchmark_ticker)
 
+        df_prices_raw = download_data_silently(list(all_tickers_to_download), start_date_str, end_date_str)
+        if isinstance(df_prices_raw, pd.Series):
+            df_prices_raw = df_prices_raw.to_frame(name=list(all_tickers_to_download)[0])
+
+        benchmark_history = None
+        if benchmark_ticker and benchmark_ticker in df_prices_raw.columns:
+            benchmark_prices = df_prices_raw[[benchmark_ticker]].dropna()
+            if not benchmark_prices.empty:
+                benchmark_history = benchmark_prices.rename(columns={benchmark_ticker: 'value'})
+        
         results = []
         requested_start_date = pd.to_datetime(start_date_str)
         
@@ -240,7 +249,8 @@ def scan_handler():
                 note = f"(從 {problematic_info[0]['start_date']} 開始)"
 
             history_df = stock_prices.to_frame(name='value')
-            metrics = calculate_metrics(history_df)
+            # 傳入基準歷史數據以計算 Beta 和 Alpha
+            metrics = calculate_metrics(history_df, benchmark_history)
             results.append({'ticker': ticker, **metrics, 'note': note})
 
         return jsonify(results)
