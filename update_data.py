@@ -2,6 +2,17 @@ import pandas as pd
 import yfinance as yf
 import json
 import time
+import os
+from pathlib import Path
+
+# --- 設定資料儲存路徑 ---
+# 建立 data 資料夾來存放所有產出的檔案
+data_folder = Path("data")
+prices_folder = data_folder / "prices"
+data_folder.mkdir(exist_ok=True)
+prices_folder.mkdir(exist_ok=True)
+
+PREPROCESSED_JSON_PATH = data_folder / "preprocessed_data.json"
 
 def get_etf_holdings(etf_ticker):
     """主要方案：從指定的 ETF 獲取其成分股列表"""
@@ -105,9 +116,28 @@ def get_stock_info(ticker_str, max_retries=3, initial_delay=5):
     print(f"  -> 在 {max_retries} 次重試後，仍無法獲取 {ticker_str} 的數據。")
     return None
 
+def update_price_data(tickers):
+    """下載指定股票列表的歷史價格並儲存為 CSV"""
+    print(f"\n--- 開始更新 {len(tickers)} 支股票的歷史價格數據 ---")
+    for i, ticker in enumerate(tickers):
+        try:
+            print(f"正在下載: {ticker} ({i+1}/{len(tickers)})")
+            # 下載從 1990 年至今的調整後收盤價
+            data = yf.download(ticker, start="1990-01-01", auto_adjust=True, progress=False)
+            if not data.empty:
+                price_df = data[['Close']].copy()
+                price_df.to_csv(prices_folder / f"{ticker}.csv")
+            else:
+                print(f"  -> {ticker} 沒有可下載的價格數據。")
+            time.sleep(0.3) # 避免請求過於頻繁
+        except Exception as e:
+            print(f"  -> 下載 {ticker} 價格時發生錯誤: {e}")
+    print("--- 歷史價格數據更新完成 ---")
+
+
 def main():
     """主執行函式"""
-    print("開始獲取指數成分股...")
+    print("--- 開始更新基本面數據 ---")
     
     # S&P 500 with fallback
     sp500_tickers = get_etf_holdings("VOO") or get_sp500_from_wiki()
@@ -132,7 +162,7 @@ def main():
     
     all_stock_data = []
     for i, ticker in enumerate(all_unique_tickers):
-        print(f"正在處理: {ticker} ({i+1}/{len(all_unique_tickers)})")
+        print(f"正在處理基本面: {ticker} ({i+1}/{len(all_unique_tickers)})")
         info = get_stock_info(ticker)
         if info:
             info['in_sp500'] = ticker in sp500_set
@@ -141,10 +171,13 @@ def main():
             all_stock_data.append(info)
         time.sleep(0.2) 
 
-    with open('preprocessed_data.json', 'w', encoding='utf-8') as f:
+    with open(PREPROCESSED_JSON_PATH, 'w', encoding='utf-8') as f:
         json.dump(all_stock_data, f, ensure_ascii=False, indent=4)
         
-    print("數據處理完成，已儲存至 preprocessed_data.json")
+    print(f"基本面數據處理完成，已儲存至 {PREPROCESSED_JSON_PATH}")
+
+    # **新增步驟**：更新所有股票的歷史價格數據
+    update_price_data(all_unique_tickers)
 
 if __name__ == '__main__':
     main()
