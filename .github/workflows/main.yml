@@ -28,27 +28,27 @@ jobs:
       - name: Run data update script
         run: python update_data.py
 
-      - name: Commit and push changes
+      - name: Commit and push data to data branch
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # 將 data 資料夾下的所有變動加入暫存區
-          git add data/
+          # 切換到一個臨時分支來處理數據
+          git checkout -b temp-data-branch
+          
+          # 強制加入被 .gitignore 忽略的 data 資料夾
+          git add -f data/
           
           # 檢查是否有變動
           if ! git diff --staged --quiet; then
-            # 步驟 1: 從遠端獲取最新的分支狀態
-            git fetch origin main
-            
-            # 步驟 2: 將本地分支重設為與遠端一致，但保留我們剛剛生成的數據變更在暫存區
-            git reset --soft origin/main
-            
-            # 步驟 3: 在最新的基礎上，建立一個包含所有數據變更的新提交
+            # 建立一個只包含數據的提交
             git commit -m "chore: 自動更新股票數據"
             
-            # 步驟 4: 將這個全新的、不會有衝突的提交推送回倉庫
-            git push
+            # 強制將當前分支的內容推送到遠端的 data 分支
+            # -f (force) 選項會完全覆蓋遠端 data 分支的歷史，確保每次都是最新的數據
+            git push -f origin temp-data-branch:data
+            
+            echo "數據已成功推送到 data 分支。"
           else
             echo "數據無變動，無需提交。"
           fi
