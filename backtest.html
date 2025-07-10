@@ -34,19 +34,9 @@
         .autocomplete-suggestions { position: absolute; border: 1px solid #d1d5db; background-color: white; max-height: 200px; overflow-y: auto; z-index: 100; width: 100%; border-radius: 0.375rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
         .suggestion-item { padding: 0.5rem 1rem; cursor: pointer; }
         .suggestion-item:hover, .suggestion-item.active { background-color: #eef2ff; }
-        
-        /* 新增: 頁籤樣式 */
-        .tab-link.active {
-            color: #4f46e5;
-            border-color: #4f46e5;
-        }
-        .tab-link {
-            border-color: transparent;
-        }
-        .tab-link:hover {
-            border-color: #d1d5db;
-            color: #6b7280;
-        }
+        .tab-link.active { color: #4f46e5; border-color: #4f46e5; }
+        .tab-link { border-color: transparent; }
+        .tab-link:hover { border-color: #d1d5db; color: #6b7280; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -61,12 +51,8 @@
         <!-- Tab Navigation -->
         <div class="mb-4 border-b border-gray-200">
             <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="main-tabs-container">
-                <li class="mr-2">
-                    <a href="#" class="inline-block p-4 border-b-2 rounded-t-lg tab-link active" data-tab="backtester">投資組合回測</a>
-                </li>
-                <li class="mr-2">
-                    <a href="#" class="inline-block p-4 border-b-2 rounded-t-lg tab-link" data-tab="scanner">個股掃描系統</a>
-                </li>
+                <li class="mr-2"><a href="#" class="inline-block p-4 border-b-2 rounded-t-lg tab-link active" data-tab="backtester">投資組合回測</a></li>
+                <li class="mr-2"><a href="#" class="inline-block p-4 border-b-2 rounded-t-lg tab-link" data-tab="scanner">個股掃描系統</a></li>
             </ul>
         </div>
 
@@ -78,249 +64,34 @@
                     <h2 class="text-2xl font-bold mb-6 border-b pb-4">投資組合回測</h2>
                     <!-- Portfolio settings -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                        <div>
-                            <label for="initialAmount" class="block text-sm font-medium text-gray-700">初始投資金額 ($)</label>
-                            <input type="number" id="initialAmount" value="10000" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        <div class="space-y-4">
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label for="startYear" class="block text-sm font-medium text-gray-700">起始</label>
-                                    <select id="startYear" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
-                                </div>
-                                <div>
-                                    <label for="startMonth" class="block text-sm font-medium text-gray-700">&nbsp;</label>
-                                    <select id="startMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label for="endYear" class="block text-sm font-medium text-gray-700">結束</label>
-                                    <select id="endYear" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
-                                </div>
-                                <div>
-                                    <label for="endMonth" class="block text-sm font-medium text-gray-700">&nbsp;</label>
-                                    <select id="endMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="rebalancingPeriod" class="block text-sm font-medium text-gray-700">再平衡週期</label>
-                            <select id="rebalancingPeriod" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="never">從不</option>
-                                <option value="annually" selected>每年</option>
-                                <option value="quarterly">每季</option>
-                                <option value="monthly">每月</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="benchmark" class="block text-sm font-medium text-gray-700">比較基準</label>
-                            <input type="text" id="benchmark" value="SPY" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase" placeholder="例如: SPY">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">股息再投入 <span class="info-icon">ⓘ<span class="tooltip">yfinance 的調整後股價已隱含股息再投入的總報酬，此為標準回測方法。</span></span></label>
-                            <div class="mt-1 w-full py-2 px-3 border border-gray-200 bg-gray-100 rounded-md text-gray-500">是 (預設)</div>
-                        </div>
+                        <div><label for="initialAmount" class="block text-sm font-medium text-gray-700">初始投資金額 ($)</label><input type="number" id="initialAmount" value="10000" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></div>
+                        <div class="space-y-4"><div class="grid grid-cols-2 gap-2"><div><label for="startYear" class="block text-sm font-medium text-gray-700">起始</label><select id="startYear" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select></div><div><label for="startMonth" class="block text-sm font-medium text-gray-700">&nbsp;</label><select id="startMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select></div></div><div class="grid grid-cols-2 gap-2"><div><label for="endYear" class="block text-sm font-medium text-gray-700">結束</label><select id="endYear" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select></div><div><label for="endMonth" class="block text-sm font-medium text-gray-700">&nbsp;</label><select id="endMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select></div></div></div>
+                        <div><label for="rebalancingPeriod" class="block text-sm font-medium text-gray-700">再平衡週期</label><select id="rebalancingPeriod" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option value="never">從不</option><option value="annually" selected>每年</option><option value="quarterly">每季</option><option value="monthly">每月</option></select></div>
+                        <div><label for="benchmark" class="block text-sm font-medium text-gray-700">比較基準</label><input type="text" id="benchmark" value="SPY" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase" placeholder="例如: SPY"></div>
+                        <div><label class="block text-sm font-medium text-gray-700">股息再投入 <span class="info-icon">ⓘ<span class="tooltip">yfinance 的調整後股價已隱含股息再投入的總報酬，此為標準回測方法。</span></span></label><div class="mt-1 w-full py-2 px-3 border border-gray-200 bg-gray-100 rounded-md text-gray-500">是 (預設)</div></div>
                     </div>
                     <!-- Portfolio Grid -->
-                    <div class="mt-6">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-xl font-semibold">投資組合資產配置</h3>
-                            <div class="flex items-center space-x-4">
-                                <button id="add-asset-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors">＋ 新增資產</button>
-                                <button id="add-portfolio-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors">＋ 新增投資組合</button>
-                            </div>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table id="portfolio-grid" class="w-full">
-                                <thead></thead>
-                                <tbody></tbody>
-                                <tfoot></tfoot>
-                            </table>
-                        </div>
-                    </div>
+                    <div class="mt-6"><div class="flex justify-between items-center mb-4"><h3 class="text-xl font-semibold">投資組合資產配置</h3><div class="flex items-center space-x-4"><button id="add-asset-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors">＋ 新增資產</button><button id="add-portfolio-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors">＋ 新增投資組合</button></div></div><div class="overflow-x-auto"><table id="portfolio-grid" class="w-full"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
                     <!-- Run Button & Results -->
-                    <div class="mt-6">
-                        <div id="error-container"></div>
-                        <button id="run-backtest" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 shadow-md text-lg">
-                            🚀 執行投資組合回測
-                        </button>
-                    </div>
-                    <div id="results-panel" class="hidden mt-8">
-                        <div class="text-center mb-8" id="loader">
-                            <div class="loader mx-auto"></div>
-                            <p class="mt-4 text-gray-600">正在請求後端伺服器進行計算，請稍候...</p>
-                        </div>
-                        <div id="warning-container"></div>
-                        <div id="results-content" class="hidden">
-                            <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
-                                <h2 class="text-2xl font-bold mb-4">投資組合價值增長</h2>
-                                <div class="h-96"><canvas id="portfolio-chart"></canvas></div>
-                            </div>
-                            <div class="bg-white p-6 rounded-2xl shadow-lg">
-                                <h2 class="text-2xl font-bold mb-4">績效總覽</h2>
-                                <div class="overflow-x-auto">
-                                    <table id="summary-table" class="w-full text-center"></table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="mt-6"><div id="error-container"></div><button id="run-backtest" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform transform hover:scale-105 shadow-md text-lg">🚀 執行投資組合回測</button></div>
+                    <div id="results-panel" class="hidden mt-8"><div class="text-center mb-8" id="loader"><div class="loader mx-auto"></div><p class="mt-4 text-gray-600">正在請求後端伺服器進行計算，請稍候...</p></div><div id="warning-container"></div><div id="results-content" class="hidden"><div class="bg-white p-6 rounded-2xl shadow-lg mb-8"><h2 class="text-2xl font-bold mb-4">投資組合價值增長</h2><div class="h-96"><canvas id="portfolio-chart"></canvas></div></div><div class="bg-white p-6 rounded-2xl shadow-lg"><h2 class="text-2xl font-bold mb-4">績效總覽</h2><div class="overflow-x-auto"><table id="summary-table" class="w-full text-center"></table></div></div></div></div>
                 </div>
             </div>
-
             <!-- Stock Scanner Panel -->
             <div id="scanner-panel" class="tab-panel hidden">
                 <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
                     <h2 class="text-2xl font-bold mb-6 border-b pb-4">個股快速績效掃描</h2>
-                    
                     <!-- Screener -->
-                    <div class="bg-gray-50 p-4 rounded-lg mb-6 border">
-                        <h3 class="text-lg font-semibold mb-3 text-gray-800">預篩選器</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            <div>
-                                <label for="screener-index" class="block text-sm font-medium text-gray-700">基礎池</label>
-                                <select id="screener-index" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option value="sp500" selected>S&P 500</option>
-                                    <option value="nasdaq100">NASDAQ 100</option>
-                                    <option value="russell1000">Russell 1000</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="screener-sector" class="block text-sm font-medium text-gray-700">產業</label>
-                                <select id="screener-sector" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                                    <option value="any" selected>任何產業</option>
-                                    <option value="Technology">科技</option>
-                                    <option value="Communication Services">通訊服務</option>
-                                    <option value="Healthcare">醫療保健</option>
-                                    <option value="Consumer Cyclical">非必需消費品</option>
-                                    <option value="Consumer Defensive">必需性消費品</option>
-                                    <option value="Financial Services">金融服務</option>
-                                    <option value="Industrials">工業</option>
-                                    <option value="Energy">能源</option>
-                                    <option value="Real Estate">房地產</option>
-                                    <option value="Basic Materials">原物料</option>
-                                    <option value="Utilities">公用事業</option>
-                                </select>
-                            </div>
-                            <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">市值 (億)</label>
-                                    <div class="flex space-x-2 mt-1">
-                                        <input type="number" id="screener-marketCap-min" class="filter-input w-full" placeholder="Min" value="1000">
-                                        <input type="number" id="screener-marketCap-max" class="filter-input w-full" placeholder="Max">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">本益比 (P/E)</label>
-                                    <div class="flex space-x-2 mt-1">
-                                        <input type="number" id="screener-trailingPE-min" class="filter-input w-full" placeholder="Min" value="0">
-                                        <input type="number" id="screener-trailingPE-max" class="filter-input w-full" placeholder="Max">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">股息率 (%)</label>
-                                    <div class="flex space-x-2 mt-1">
-                                        <input type="number" id="screener-dividendYield-min" class="filter-input w-full" placeholder="Min">
-                                        <input type="number" id="screener-dividendYield-max" class="filter-input w-full" placeholder="Max">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">ROE (%)</label>
-                                    <div class="flex space-x-2 mt-1">
-                                        <input type="number" id="screener-returnOnEquity-min" class="filter-input w-full" placeholder="Min">
-                                        <input type="number" id="screener-returnOnEquity-max" class="filter-input w-full" placeholder="Max">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">營收成長率 (%)</label>
-                                    <div class="flex space-x-2 mt-1">
-                                        <input type="number" id="screener-revenueGrowth-min" class="filter-input w-full" placeholder="Min">
-                                        <input type="number" id="screener-revenueGrowth-max" class="filter-input w-full" placeholder="Max">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">EPS 成長率 (%)</label>
-                                    <div class="flex space-x-2 mt-1">
-                                        <input type="number" id="screener-earningsGrowth-min" class="filter-input w-full" placeholder="Min">
-                                        <input type="number" id="screener-earningsGrowth-max" class="filter-input w-full" placeholder="Max">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <div id="screener-error-container"></div>
-                            <button id="run-screener-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                                篩選並匯入至下方列表
-                            </button>
-                        </div>
-                    </div>
-
+                    <div class="bg-gray-50 p-4 rounded-lg mb-6 border"><h3 class="text-lg font-semibold mb-3 text-gray-800">預篩選器</h3><div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4"><div><label for="screener-index" class="block text-sm font-medium text-gray-700">基礎池</label><select id="screener-index" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option value="sp500" selected>S&P 500</option><option value="nasdaq100">NASDAQ 100</option><option value="russell1000">Russell 1000</option></select></div><div><label for="screener-sector" class="block text-sm font-medium text-gray-700">產業</label><select id="screener-sector" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option value="any" selected>任何產業</option><option value="Technology">科技</option><option value="Communication Services">通訊服務</option><option value="Healthcare">醫療保健</option><option value="Consumer Cyclical">非必需消費品</option><option value="Consumer Defensive">必需性消費品</option><option value="Financial Services">金融服務</option><option value="Industrials">工業</option><option value="Energy">能源</option><option value="Real Estate">房地產</option><option value="Basic Materials">原物料</option><option value="Utilities">公用事業</option></select></div><div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">市值 (億)</label><div class="flex space-x-2 mt-1"><input type="number" id="screener-marketCap-min" class="filter-input w-full" placeholder="Min" value="1000"><input type="number" id="screener-marketCap-max" class="filter-input w-full" placeholder="Max"></div></div><div><label class="block text-sm font-medium text-gray-700">本益比 (P/E)</label><div class="flex space-x-2 mt-1"><input type="number" id="screener-trailingPE-min" class="filter-input w-full" placeholder="Min" value="0"><input type="number" id="screener-trailingPE-max" class="filter-input w-full" placeholder="Max"></div></div></div><div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">股息率 (%)</label><div class="flex space-x-2 mt-1"><input type="number" id="screener-dividendYield-min" class="filter-input w-full" placeholder="Min"><input type="number" id="screener-dividendYield-max" class="filter-input w-full" placeholder="Max"></div></div><div><label class="block text-sm font-medium text-gray-700">ROE (%)</label><div class="flex space-x-2 mt-1"><input type="number" id="screener-returnOnEquity-min" class="filter-input w-full" placeholder="Min"><input type="number" id="screener-returnOnEquity-max" class="filter-input w-full" placeholder="Max"></div></div></div><div class="col-span-1 md:col-span-2 grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-700">營收成長率 (%)</label><div class="flex space-x-2 mt-1"><input type="number" id="screener-revenueGrowth-min" class="filter-input w-full" placeholder="Min"><input type="number" id="screener-revenueGrowth-max" class="filter-input w-full" placeholder="Max"></div></div><div><label class="block text-sm font-medium text-gray-700">EPS 成長率 (%)</label><div class="flex space-x-2 mt-1"><input type="number" id="screener-earningsGrowth-min" class="filter-input w-full" placeholder="Min"><input type="number" id="screener-earningsGrowth-max" class="filter-input w-full" placeholder="Max"></div></div></div></div><div class="mt-4"><div id="screener-error-container"></div><button id="run-screener-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">篩選並匯入至下方列表</button></div></div>
                     <!-- Scanner Inputs -->
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div class="md:col-span-2">
-                            <label for="tag-input-field" class="block text-sm font-medium text-gray-700">股票代碼 (輸入後按 Enter 新增)</label>
-                            <div class="mt-1 relative">
-                                <div id="tag-input-container" class="tag-input-container">
-                                    <input type="text" id="tag-input-field" class="tag-input-field uppercase" placeholder="可手動輸入，或使用上方篩選器匯入...">
-                                </div>
-                                <div id="autocomplete-suggestions" class="autocomplete-suggestions hidden"></div>
-                            </div>
-                        </div>
-                        <div class="space-y-4">
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label for="scan-startYear" class="block text-sm font-medium text-gray-700">起始</label>
-                                    <select id="scan-startYear" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
-                                </div>
-                                <div>
-                                    <label for="scan-startMonth" class="block text-sm font-medium text-gray-700">&nbsp;</label>
-                                    <select id="scan-startMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label for="scan-endYear" class="block text-sm font-medium text-gray-700">結束</label>
-                                    <select id="scan-endYear" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
-                                </div>
-                                <div>
-                                    <label for="scan-endMonth" class="block text-sm font-medium text-gray-700">&nbsp;</label>
-                                    <select id="scan-endMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="scan-benchmark" class="block text-sm font-medium text-gray-700">比較基準</label>
-                            <input type="text" id="scan-benchmark" value="SPY" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase" placeholder="例如: SPY">
-                        </div>
-                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6"><div class="md:col-span-2"><label for="tag-input-field" class="block text-sm font-medium text-gray-700">股票代碼 (輸入後按 Enter 新增)</label><div class="mt-1 relative"><div id="tag-input-container" class="tag-input-container"><input type="text" id="tag-input-field" class="tag-input-field uppercase" placeholder="可手動輸入，或使用上方篩選器匯入..."></div><div id="autocomplete-suggestions" class="autocomplete-suggestions hidden"></div></div></div><div class="space-y-4"><div class="grid grid-cols-2 gap-2"><div><label for="scan-startYear" class="block text-sm font-medium text-gray-700">起始</label><select id="scan-startYear" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select></div><div><label for="scan-startMonth" class="block text-sm font-medium text-gray-700">&nbsp;</label><select id="scan-startMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select></div></div><div class="grid grid-cols-2 gap-2"><div><label for="scan-endYear" class="block text-sm font-medium text-gray-700">結束</label><select id="scan-endYear" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select></div><div><label for="scan-endMonth" class="block text-sm font-medium text-gray-700">&nbsp;</label><select id="scan-endMonth" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></select></div></div></div><div><label for="scan-benchmark" class="block text-sm font-medium text-gray-700">比較基準</label><input type="text" id="scan-benchmark" value="SPY" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase" placeholder="例如: SPY"></div></div>
                     <!-- Scanner Run & Results -->
-                    <div class="mt-6">
-                        <div id="scan-error-container"></div>
-                        <button id="run-scan-btn" class="w-full bg-teal-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-transform transform hover:scale-105 shadow-md text-lg">
-                            🔍 開始掃描回測
-                        </button>
-                    </div>
-                    <div id="scan-results-panel" class="hidden mt-8">
-                        <div class="text-center mb-8" id="scan-loader">
-                            <div class="loader mx-auto"></div>
-                            <p class="mt-4 text-gray-600">正在掃描多檔標的，請稍候...</p>
-                        </div>
-                        <div id="scan-results-content" class="hidden">
-                            <h2 class="text-2xl font-bold mb-4">個股績效列表</h2>
-                            <div class="overflow-x-auto">
-                                <table id="scan-summary-table" class="w-full text-center"></table>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="mt-6"><div id="scan-error-container"></div><button id="run-scan-btn" class="w-full bg-teal-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-transform transform hover:scale-105 shadow-md text-lg">🔍 開始掃描回測</button></div>
+                    <div id="scan-results-panel" class="hidden mt-8"><div class="text-center mb-8" id="scan-loader"><div class="loader mx-auto"></div><p class="mt-4 text-gray-600">正在掃描多檔標的，請稍候...</p></div><div id="scan-results-content" class="hidden"><h2 class="text-2xl font-bold mb-4">個股績效列表</h2><div class="overflow-x-auto"><table id="scan-summary-table" class="w-full text-center"></table></div></div></div>
                 </div>
             </div>
         </div>
     </div>
-
     <script type="module" src="/js/main.js"></script>
 </body>
 </html>
