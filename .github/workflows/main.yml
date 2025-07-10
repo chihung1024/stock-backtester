@@ -38,13 +38,16 @@ jobs:
           
           # 檢查是否有變動
           if ! git diff --staged --quiet; then
-            # 步驟 1: 先在本地進行提交
+            # 步驟 1: 從遠端獲取最新的分支狀態
+            git fetch origin main
+            
+            # 步驟 2: 將本地分支重設為與遠端一致，但保留我們剛剛生成的數據變更在暫存區
+            git reset --soft origin/main
+            
+            # 步驟 3: 在最新的基礎上，建立一個包含所有數據變更的新提交
             git commit -m "chore: 自動更新股票數據"
             
-            # 步驟 2: 在乾淨的工作狀態下，從遠端拉取最新的變更
-            git pull --rebase
-            
-            # 步驟 3: 將合併後的結果推送回遠端倉庫
+            # 步驟 4: 將這個全新的、不會有衝突的提交推送回倉庫
             git push
           else
             echo "數據無變動，無需提交。"
