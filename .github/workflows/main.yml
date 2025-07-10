@@ -1,4 +1,4 @@
-name: Update Stock Screener Data
+name: Update Stock Data
 
 on:
   workflow_dispatch: # 允許手動觸發
@@ -25,8 +25,16 @@ jobs:
       - name: Run data update script
         run: python update_data.py
 
-      - name: Update Gist with new data
-        env:
-          GH_TOKEN: ${{ secrets.GIST_SECRET }}
+      - name: Commit and push changes
         run: |
-          gh gist edit ${{ secrets.GIST_ID }} preprocessed_data.json
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          # 將 data 資料夾下的所有變動加入暫存區
+          git add data/
+          # 檢查是否有變動
+          if ! git diff --staged --quiet; then
+            git commit -m " chore: 自動更新股票數據"
+            git push
+          else
+            echo "數據無變動，無需提交。"
+          fi
