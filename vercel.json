@@ -6,6 +6,10 @@
       "dest": "/api/index.py"
     },
     {
+      "src": "/js/(.*)",
+      "dest": "/public/js/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/backtest.html"
     }
