@@ -5,7 +5,6 @@ on:
   schedule:
     - cron: '0 8 * * *' # 每日午夜 (UTC) 執行，約為台灣時間早上8點
 
-# 新增部分：明確設定此工作流程的權限
 permissions:
   contents: write # 允許對倉庫內容進行寫入操作
 
@@ -33,10 +32,16 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
           # 將 data 資料夾下的所有變動加入暫存區
           git add data/
-          # 檢查是否有變動，只有在有變動時才執行 commit 和 push
+          
+          # 檢查是否有變動
           if ! git diff --staged --quiet; then
+            # 在提交前，先從遠端拉取最新的變更，並使用 rebase 模式
+            # --rebase 可以讓提交歷史保持線性，避免不必要的合併提交
+            git pull --rebase
+            
             git commit -m "chore: 自動更新股票數據"
             git push
           else
