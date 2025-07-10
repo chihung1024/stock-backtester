@@ -230,8 +230,8 @@ def screener_handler():
             base_pool = [s for s in all_stocks if s.get('in_sp500')]
         elif index == 'nasdaq100':
             base_pool = [s for s in all_stocks if s.get('in_nasdaq100')]
-        elif index == 'russell3000':
-            base_pool = [s for s in all_stocks if s.get('in_russell3000')]
+        elif index == 'russell1000':
+            base_pool = [s for s in all_stocks if s.get('in_russell1000')]
         else:
             base_pool = all_stocks
 
