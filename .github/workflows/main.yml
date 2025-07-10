@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 8 * * *' # 每日午夜 (UTC) 執行，約為台灣時間早上8點
 
+# 新增部分：明確設定此工作流程的權限
+permissions:
+  contents: write # 允許對倉庫內容進行寫入操作
+
 jobs:
   update-data:
     runs-on: ubuntu-latest
@@ -31,9 +35,9 @@ jobs:
           git config --local user.name "GitHub Action"
           # 將 data 資料夾下的所有變動加入暫存區
           git add data/
-          # 檢查是否有變動
+          # 檢查是否有變動，只有在有變動時才執行 commit 和 push
           if ! git diff --staged --quiet; then
-            git commit -m " chore: 自動更新股票數據"
+            git commit -m "chore: 自動更新股票數據"
             git push
           else
             echo "數據無變動，無需提交。"
