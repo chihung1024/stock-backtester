@@ -6,3 +6,4 @@ cachetools
 requests
 beautifulsoup4
 lxml
+tqdm
