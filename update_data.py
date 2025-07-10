@@ -48,73 +48,81 @@ def get_nasdaq100_from_wiki():
         print(f"備援方案失敗 (NASDAQ 100): {e}")
         return []
 
-def get_russell3000_from_ishares():
-    """備援方案：從 iShares 官網獲取 Russell 3000 成分股列表"""
+def get_russell1000_from_ishares():
+    """備援方案：從 iShares 官網獲取 Russell 1000 成分股列表"""
     try:
-        print("備援方案：正在從 iShares 官網獲取 Russell 3000 列表...")
-        url = 'https://www.ishares.com/us/products/239714/ishares-russell-3000-etf/1467271812596.ajax?fileType=csv&fileName=IWV_holdings&dataType=fund'
+        print("備援方案：正在從 iShares 官網獲取 Russell 1000 列表...")
+        url = 'https://www.ishares.com/us/products/239707/ishares-russell-1000-etf/1467271812596.ajax?fileType=csv&fileName=IWB_holdings&dataType=fund'
         df = pd.read_csv(url, skiprows=9)
         df = df[df['Asset Class'] == 'Equity']
         tickers = df['Ticker'].dropna().unique().tolist()
-        print(f"成功從 iShares 獲取 {len(tickers)} 支 Russell 3000 股票。")
+        print(f"成功從 iShares 獲取 {len(tickers)} 支 Russell 1000 股票。")
         return tickers
     except Exception as e:
-        print(f"備援方案失敗 (Russell 3000): {e}")
+        print(f"備援方案失敗 (Russell 1000): {e}")
         return []
 
-def get_stock_info(ticker_str):
-    """使用 yfinance 獲取股票的詳細財務資訊"""
-    try:
-        ticker_obj = yf.Ticker(ticker_str)
-        info = ticker_obj.info
-        
-        # 提取所有我們需要的財務指標，若不存在則提供 None 或 0
-        return {
-            'ticker': ticker_str,
-            'marketCap': info.get('marketCap'),
-            'sector': info.get('sector'),
-            'industry': info.get('industry'),
-            'averageVolume': info.get('averageVolume'),
-            'trailingPE': info.get('trailingPE'),
-            'forwardPE': info.get('forwardPE'),
-            'priceToBook': info.get('priceToBook'),
-            'pegRatio': info.get('pegRatio'),
-            'priceToSales': info.get('priceToSalesTrailing12Months'),
-            'revenueGrowth': info.get('revenueGrowth'),
-            'earningsGrowth': info.get('earningsGrowth'),
-            'returnOnEquity': info.get('returnOnEquity'),
-            'grossMargins': info.get('grossMargins'),
-            'operatingMargins': info.get('operatingMargins'),
-            'dividendYield': info.get('dividendYield'),
-        }
-    except Exception as e:
-        print(f"  -> 無法獲取 {ticker_str} 的財務數據: {e}")
-        return None
+def get_stock_info(ticker_str, max_retries=3, initial_delay=5):
+    """使用 yfinance 獲取股票的詳細財務資訊，並加入重試與指數退避機制。"""
+    delay = initial_delay
+    for attempt in range(max_retries):
+        try:
+            ticker_obj = yf.Ticker(ticker_str)
+            info = ticker_obj.info
+            
+            if info.get('trailingPE') is None and info.get('marketCap') is None and info.get('regularMarketPrice') is None:
+                 print(f"  -> {ticker_str} 的數據不完整或無效，跳過。")
+                 return None
+
+            return {
+                'ticker': ticker_str,
+                'marketCap': info.get('marketCap'),
+                'sector': info.get('sector'),
+                'industry': info.get('industry'),
+                'averageVolume': info.get('averageVolume'),
+                'trailingPE': info.get('trailingPE'),
+                'forwardPE': info.get('forwardPE'),
+                'priceToBook': info.get('priceToBook'),
+                'pegRatio': info.get('pegRatio'),
+                'priceToSales': info.get('priceToSalesTrailing12Months'),
+                'revenueGrowth': info.get('revenueGrowth'),
+                'earningsGrowth': info.get('earningsGrowth'),
+                'returnOnEquity': info.get('returnOnEquity'),
+                'grossMargins': info.get('grossMargins'),
+                'operatingMargins': info.get('operatingMargins'),
+                'dividendYield': info.get('dividendYield'),
+            }
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'too many requests' in error_str or '429' in error_str or 'rate limit' in error_str:
+                print(f"  -> 請求 {ticker_str} 時被速率限制。將在 {delay} 秒後重試... (第 {attempt + 1}/{max_retries} 次)")
+                time.sleep(delay)
+                delay *= 2 
+            else:
+                print(f"  -> 無法獲取 {ticker_str} 的數據: {e}")
+                return None
+    
+    print(f"  -> 在 {max_retries} 次重試後，仍無法獲取 {ticker_str} 的數據。")
+    return None
 
 def main():
     """主執行函式"""
     print("開始獲取指數成分股...")
     
     # S&P 500 with fallback
-    sp500_tickers = get_etf_holdings("VOO")
-    if not sp500_tickers:
-        sp500_tickers = get_sp500_from_wiki()
+    sp500_tickers = get_etf_holdings("VOO") or get_sp500_from_wiki()
     
     # NASDAQ 100 with fallback
-    nasdaq100_tickers = get_etf_holdings("QQQ")
-    if not nasdaq100_tickers:
-        nasdaq100_tickers = get_nasdaq100_from_wiki()
+    nasdaq100_tickers = get_etf_holdings("QQQ") or get_nasdaq100_from_wiki()
 
-    # Russell 3000 with fallback
-    russell3000_tickers = get_etf_holdings("IWV")
-    if not russell3000_tickers:
-        russell3000_tickers = get_russell3000_from_ishares()
+    # Russell 1000 with fallback
+    russell1000_tickers = get_etf_holdings("IWB") or get_russell1000_from_ishares()
 
     sp500_set = set(sp500_tickers)
     nasdaq100_set = set(nasdaq100_tickers)
-    russell3000_set = set(russell3000_tickers)
+    russell1000_set = set(russell1000_tickers)
     
-    all_unique_tickers = sorted(list(sp500_set.union(nasdaq100_set).union(russell3000_set)))
+    all_unique_tickers = sorted(list(sp500_set.union(nasdaq100_set).union(russell1000_set)))
     
     if not all_unique_tickers:
         print("錯誤：所有數據來源均無法獲取任何成分股，終止執行。")
@@ -129,9 +137,9 @@ def main():
         if info:
             info['in_sp500'] = ticker in sp500_set
             info['in_nasdaq100'] = ticker in nasdaq100_set
-            info['in_russell3000'] = ticker in russell3000_set
+            info['in_russell1000'] = ticker in russell1000_set
             all_stock_data.append(info)
-        time.sleep(0.1) 
+        time.sleep(0.2) 
 
     with open('preprocessed_data.json', 'w', encoding='utf-8') as f:
         json.dump(all_stock_data, f, ensure_ascii=False, indent=4)
