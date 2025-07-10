@@ -1,39 +1,58 @@
 import os
-import sys
-from io import StringIO
-import requests
-import yfinance as yf
 import pandas as pd
 from pandas.tseries.offsets import BDay
 from cachetools import cached, TTLCache
+import json
+from pathlib import Path
 
 # --- 快取設定 ---
-cache = TTLCache(maxsize=128, ttl=600)
+# 快取現在用於緩存從檔案讀取的 DataFrame，避免重複的 I/O 操作
+cache = TTLCache(maxsize=256, ttl=1800) # 快取 30 分鐘
 
-# --- 從環境變數讀取 Gist Raw URL ---
-GIST_RAW_URL = os.environ.get('GIST_RAW_URL')
+# --- 資料路徑設定 ---
+# 使用相對路徑來定位部署包內的 data 資料夾
+# Path(__file__) 會取得目前檔案 (data_handler.py) 的路徑
+# .parent.parent 會往上兩層，到達 api/ 的同層目錄
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_FOLDER = BASE_DIR / "data"
+PRICES_FOLDER = DATA_FOLDER / "prices"
+PREPROCESSED_JSON_PATH = DATA_FOLDER / "preprocessed_data.json"
+
 
 @cached(cache)
-def download_data_silently(tickers, start_date, end_date):
+def read_price_data_from_repo(tickers: tuple, start_date_str: str, end_date_str: str) -> pd.DataFrame:
     """
-    使用快取機制下載數據，並抑制 yfinance 的輸出。
+    從倉庫中的 CSV 檔案讀取指定股票的價格數據，並合併成一個 DataFrame。
     """
-    old_stdout = sys.stdout
-    sys.stdout = StringIO()
-    try:
-        data = yf.download(list(tickers), start=start_date, end=end_date, auto_adjust=True, progress=False)['Close']
-    finally:
-        sys.stdout = old_stdout
-    return data
+    all_prices = []
+    for ticker in tickers:
+        file_path = PRICES_FOLDER / f"{ticker}.csv"
+        if file_path.exists():
+            df = pd.read_csv(file_path, index_col='Date', parse_dates=True)
+            df.rename(columns={'Close': ticker}, inplace=True)
+            all_prices.append(df)
+        else:
+            print(f"警告：找不到股票 {ticker} 的價格檔案。")
+
+    if not all_prices:
+        return pd.DataFrame()
+
+    # 合併所有股票的價格數據
+    combined_df = pd.concat(all_prices, axis=1)
+    
+    # 根據請求的日期範圍篩選數據
+    mask = (combined_df.index >= start_date_str) & (combined_df.index <= end_date_str)
+    return combined_df.loc[mask]
+
 
 @cached(cache)
 def get_preprocessed_data():
-    """從 Gist 下載並快取預處理好的數據"""
-    if not GIST_RAW_URL:
-        raise ValueError("錯誤：GIST_RAW_URL 環境變數未設定。請在 Vercel 專案設定中新增此變數。")
-    response = requests.get(GIST_RAW_URL)
-    response.raise_for_status() # 如果下載失敗會拋出錯誤
-    return response.json()
+    """從倉庫中的 JSON 檔案讀取並快取預處理好的數據"""
+    if not PREPROCESSED_JSON_PATH.exists():
+         raise ValueError("錯誤：找不到 preprocessed_data.json 檔案。")
+    with open(PREPROCESSED_JSON_PATH, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
 
 def validate_data_completeness(df_prices_raw, all_tickers, requested_start_date):
     """
