@@ -15,7 +15,6 @@ scan_bp = Blueprint('scan', __name__)
 @scan_bp.route('/scan', methods=['POST'])
 def scan_handler():
     """處理個股掃描請求。"""
-    # ... (此函式的完整邏輯從舊的 index.py 移至此處) ...
     try:
         data = request.get_json()
         tickers = data['tickers']
@@ -79,7 +78,6 @@ def scan_handler():
 @scan_bp.route('/screener', methods=['POST'])
 def screener_handler():
     """處理股票篩選請求。"""
-    # ... (此函式的完整邏輯從舊的 index.py 移至此處) ...
     try:
         data = request.get_json()
         index = data.get('index', 'sp500')
@@ -92,10 +90,9 @@ def screener_handler():
             base_pool = [s for s in all_stocks if s.get('in_sp500')]
         elif index == 'nasdaq100':
             base_pool = [s for s in all_stocks if s.get('in_nasdaq100')]
-        elif index == 'russell1000':
-            base_pool = [s for s in all_stocks if s.get('in_russell1000')]
+        # (已修改) 移除 'russell1000' 的判斷，並將 S&P 500 作為預設選項
         else:
-            base_pool = all_stocks
+            base_pool = [s for s in all_stocks if s.get('in_sp500')]
 
         filtered_stocks = []
         for stock in base_pool:
