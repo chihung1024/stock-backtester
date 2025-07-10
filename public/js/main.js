@@ -1,57 +1,56 @@
 // main.js: 應用程式的主入口點
-
 import { state } from './state.js';
-import { dom } from './dom.js';
-import * as ui from './ui.js';
-import * as api from './api.js';
-import * as handlers from './handlers.js';
+import { dom } from './shared/dom.js';
+import * as api from './shared/api.js';
+import * as backtesterUI from './backtester/backtester_ui.js';
+import * as scannerHandlers from './scanner/scanner_handlers.js';
+import { handleRunBacktest } from './backtester/backtester_handlers.js';
+
+function populateDateSelectors(startYId, startMId, endYId, endMId) {
+    const currentYear = new Date().getFullYear();
+    const startYearSelect = document.getElementById(startYId);
+    const endYearSelect = document.getElementById(endYId);
+    const startMonthSelect = document.getElementById(startMId);
+    const endMonthSelect = document.getElementById(endMId);
+    for (let year = currentYear; year >= 1980; year--) {
+        startYearSelect.add(new Option(year, year));
+        endYearSelect.add(new Option(year, year));
+    }
+    startYearSelect.value = 2015;
+    endYearSelect.value = currentYear;
+    for (let month = 1; month <= 12; month++) {
+        startMonthSelect.add(new Option(month, month));
+        endMonthSelect.add(new Option(month, month));
+    }
+    startMonthSelect.value = 1;
+    endMonthSelect.value = new Date().getMonth() + 1;
+}
 
 function initializeTabs() {
     const tabsContainer = document.getElementById('main-tabs-container');
     const tabPanels = document.querySelectorAll('.tab-panel');
-
     tabsContainer.addEventListener('click', (e) => {
         e.preventDefault();
         const clickedTab = e.target.closest('.tab-link');
         if (!clickedTab) return;
-
-        // 移除所有頁籤的 active 狀態
         tabsContainer.querySelectorAll('.tab-link').forEach(tab => {
-            tab.classList.remove('active');
-            // 使用 Tailwind CSS 的顏色和邊框類別
-            tab.classList.remove('text-indigo-600', 'border-indigo-600');
+            tab.classList.remove('active', 'text-indigo-600', 'border-indigo-600');
             tab.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
         });
-
-        // 為被點擊的頁籤加上 active 狀態
-        clickedTab.classList.add('active');
-        clickedTab.classList.add('text-indigo-600', 'border-indigo-600');
-
-        // 顯示對應的面板
+        clickedTab.classList.add('active', 'text-indigo-600', 'border-indigo-600');
         const targetPanelId = clickedTab.dataset.tab + '-panel';
-        tabPanels.forEach(panel => {
-            panel.classList.toggle('hidden', panel.id !== targetPanelId);
-        });
+        tabPanels.forEach(panel => panel.classList.toggle('hidden', panel.id !== targetPanelId));
     });
 }
 
-
-function attachEventListeners() {
-    // --- 主要功能按鈕 ---
-    dom.runBacktestBtn.addEventListener('click', handlers.handleRunBacktest);
-    dom.runScanBtn.addEventListener('click', handlers.handleRunScan);
-    dom.runScreenerBtn.addEventListener('click', handlers.handleRunScreener);
-
-    // --- 投資組合表格 ---
-    const portfolioGrid = dom.portfolioGrid;
-    
-    // 按鈕（新增/刪除等會導致完整重繪的操作）
+function initializeBacktesterListeners() {
+    dom.runBacktestBtn.addEventListener('click', handleRunBacktest);
     document.getElementById('add-asset-btn').addEventListener('click', () => {
         state.assets.push({ ticker: '' });
         const newWeightRow = {};
         state.portfolios.forEach(p => newWeightRow[p.name] = 0);
         state.weights.push(newWeightRow);
-        ui.renderGrid();
+        backtesterUI.renderGrid();
     });
     document.getElementById('add-portfolio-btn').addEventListener('click', () => {
         if (state.portfolios.length >= 5) {
@@ -61,24 +60,19 @@ function attachEventListeners() {
         const newName = `投組 ${state.portfolios.length + 1}`;
         state.portfolios.push({ name: newName });
         state.weights.forEach(weightRow => { weightRow[newName] = 0; });
-        ui.renderGrid();
+        backtesterUI.renderGrid();
     });
-
-    // 使用事件委派處理表格內的互動
-    portfolioGrid.addEventListener('input', (e) => {
+    dom.portfolioGrid.addEventListener('input', (e) => {
         const target = e.target;
         if (target.classList.contains('weight-input')) {
-            const assetIndex = target.dataset.assetIndex;
-            const portfolioName = target.dataset.portfolioName;
-            state.weights[assetIndex][portfolioName] = parseFloat(target.value) || 0;
-            ui.updateTotals(); // 只更新總計，不重繪表格
+            state.weights[target.dataset.assetIndex][target.dataset.portfolioName] = parseFloat(target.value) || 0;
+            backtesterUI.updateTotals();
         }
         if (target.classList.contains('ticker-input')) {
             state.assets[target.dataset.assetIndex].ticker = target.value.toUpperCase();
         }
     });
-
-    portfolioGrid.addEventListener('change', (e) => {
+    dom.portfolioGrid.addEventListener('change', (e) => {
         const target = e.target;
         if (target.classList.contains('portfolio-name-input')) {
             const oldName = target.dataset.oldName;
@@ -92,17 +86,15 @@ function attachEventListeners() {
                     delete weightRow[oldName];
                 }
             });
-            ui.renderGrid(); // 更改名稱需要完整重繪
+            backtesterUI.renderGrid();
         }
     });
-
-    portfolioGrid.addEventListener('click', (e) => {
+    dom.portfolioGrid.addEventListener('click', (e) => {
         const removeAssetBtn = e.target.closest('.remove-asset-btn');
         if (removeAssetBtn) {
-            const assetIndex = parseInt(removeAssetBtn.dataset.assetIndex);
-            state.assets.splice(assetIndex, 1);
-            state.weights.splice(assetIndex, 1);
-            ui.renderGrid();
+            state.assets.splice(parseInt(removeAssetBtn.dataset.assetIndex), 1);
+            state.weights.splice(parseInt(removeAssetBtn.dataset.assetIndex), 1);
+            backtesterUI.renderGrid();
         }
         const clearPortfolioBtn = e.target.closest('.clear-portfolio-btn');
         if (clearPortfolioBtn) {
@@ -110,22 +102,25 @@ function attachEventListeners() {
             state.weights.forEach(weightRow => {
                 if (weightRow[portfolioToClear] !== undefined) weightRow[portfolioToClear] = 0;
             });
-            ui.renderGrid();
+            backtesterUI.renderGrid();
         }
         const clearTickersBtn = e.target.closest('.clear-tickers-btn');
-        if(clearTickersBtn) {
+        if (clearTickersBtn) {
             state.assets.forEach(asset => { asset.ticker = ''; });
-            ui.renderGrid();
+            backtesterUI.renderGrid();
         }
     });
+}
 
-    // --- 智慧型標籤輸入框 ---
-    dom.tagInputField.addEventListener('keyup', handlers.handleTagInput);
-    dom.tagInputField.addEventListener('keydown', handlers.handleTagInputKeydown);
+function initializeScannerListeners() {
+    dom.runScanBtn.addEventListener('click', scannerHandlers.handleRunScan);
+    dom.runScreenerBtn.addEventListener('click', scannerHandlers.handleRunScreener);
+    dom.tagInputField.addEventListener('keyup', scannerHandlers.handleTagInput);
+    dom.tagInputField.addEventListener('keydown', scannerHandlers.handleTagInputKeydown);
     dom.tagInputContainer.addEventListener('click', () => dom.tagInputField.focus());
     dom.autocompleteSuggestions.addEventListener('click', (e) => {
         if (e.target.classList.contains('suggestion-item')) {
-            handlers.addTag(e.target.textContent);
+            scannerHandlers.addTag(e.target.textContent);
         }
     });
     document.addEventListener('click', (e) => {
@@ -133,24 +128,22 @@ function attachEventListeners() {
             dom.autocompleteSuggestions.classList.add('hidden');
         }
     });
-
-    // --- 掃描結果表格排序 ---
     dom.scanSummaryTable.addEventListener('click', (e) => {
         const th = e.target.closest('.sortable');
         if (th) {
-            handlers.handleSortScanTable(th.dataset.sortKey);
+            scannerHandlers.handleSortScanTable(th.dataset.sortKey);
         }
     });
 }
 
 async function initialize() {
-    ui.populateDateSelectors('startYear', 'startMonth', 'endYear', 'endMonth');
-    ui.populateDateSelectors('scan-startYear', 'scan-startMonth', 'scan-endYear', 'scan-endMonth');
-    ui.renderGrid();
-    attachEventListeners();
+    populateDateSelectors('startYear', 'startMonth', 'endYear', 'endMonth');
+    populateDateSelectors('scan-startYear', 'scan-startMonth', 'scan-endYear', 'scan-endMonth');
+    backtesterUI.renderGrid();
+    initializeBacktesterListeners();
+    initializeScannerListeners();
+    initializeTabs();
     state.allAvailableTickers = await api.fetchAvailableTickers();
-    initializeTabs(); // 初始化頁籤功能
 }
 
-// 啟動應用程式
 initialize();
