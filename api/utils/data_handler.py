@@ -6,58 +6,69 @@ import json
 from pathlib import Path
 
 # --- 快取設定 ---
-# 快取現在用於緩存從檔案讀取的 DataFrame，避免重複的 I/O 操作
+# 快取現在用於緩存從網路 URL 讀取的 DataFrame，避免重複下載
 cache = TTLCache(maxsize=256, ttl=1800) # 快取 30 分鐘
 
 # --- 資料路徑設定 ---
-# 使用相對路徑來定位部署包內的 data 資料夾
-# Path(__file__) 會取得目前檔案 (data_handler.py) 的路徑
-# .parent.parent 會往上兩層，到達 api/ 的同層目錄
+# 預處理的 JSON 檔案仍然從本地讀取，因為它很小
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_FOLDER = BASE_DIR / "data"
-PRICES_FOLDER = DATA_FOLDER / "prices"
 PREPROCESSED_JSON_PATH = DATA_FOLDER / "preprocessed_data.json"
-
 
 @cached(cache)
 def read_price_data_from_repo(tickers: tuple, start_date_str: str, end_date_str: str) -> pd.DataFrame:
     """
-    從倉庫中的 CSV 檔案讀取指定股票的價格數據，並合併成一個 DataFrame。
+    從遠端 GitHub data 分支的 raw URL 讀取 CSV 檔案。
     """
+    # 從 Vercel 的環境變數中動態獲取倉庫擁有者和名稱
+    # 如果在本地開發，則使用預設值（請根據您的情況修改）
+    owner = os.environ.get('VERCEL_GIT_REPO_OWNER', 'chihung1024') 
+    repo = os.environ.get('VERCEL_GIT_REPO_SLUG', 'stock-backtester')
+    
+    # 建立基礎 URL
+    base_url = f"https://raw.githubusercontent.com/{owner}/{repo}/data/prices"
+    
     all_prices = []
     for ticker in tickers:
-        file_path = PRICES_FOLDER / f"{ticker}.csv"
-        if file_path.exists():
-            df = pd.read_csv(file_path, index_col='Date', parse_dates=True)
+        file_url = f"{base_url}/{ticker}.csv"
+        try:
+            # Pandas 可以直接從 URL 讀取 CSV
+            df = pd.read_csv(file_url, index_col='Date', parse_dates=True)
             df.rename(columns={'Close': ticker}, inplace=True)
             all_prices.append(df)
-        else:
-            print(f"警告：找不到股票 {ticker} 的價格檔案。")
+        except Exception as e:
+            # 如果某個檔案不存在或讀取失敗，則在後端日誌中印出警告
+            print(f"警告：無法從 URL 讀取股票 {ticker} 的價格檔案: {e}")
 
     if not all_prices:
         return pd.DataFrame()
 
-    # 合併所有股票的價格數據
     combined_df = pd.concat(all_prices, axis=1)
-    
-    # 根據請求的日期範圍篩選數據
     mask = (combined_df.index >= start_date_str) & (combined_df.index <= end_date_str)
     return combined_df.loc[mask]
 
 
 @cached(cache)
 def get_preprocessed_data():
-    """從倉庫中的 JSON 檔案讀取並快取預處理好的數據"""
-    if not PREPROCESSED_JSON_PATH.exists():
-         raise ValueError("錯誤：找不到 preprocessed_data.json 檔案。")
-    with open(PREPROCESSED_JSON_PATH, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    """
+    從遠端 GitHub data 分支的 raw URL 讀取預處理好的 JSON 數據。
+    """
+    owner = os.environ.get('VERCEL_GIT_REPO_OWNER', 'chihung1024') 
+    repo = os.environ.get('VERCEL_GIT_REPO_SLUG', 'stock-backtester')
+    url = f"https://raw.githubusercontent.com/{owner}/{repo}/data/preprocessed_data.json"
+    
+    try:
+        # 使用 pandas 讀取 json url
+        return pd.read_json(url).to_dict('records')
+    except Exception as e:
+        print(f"錯誤：無法從 URL 讀取 preprocessed_data.json: {e}")
+        # 在出錯時回傳空列表，避免應用程式崩潰
+        return []
 
 
 def validate_data_completeness(df_prices_raw, all_tickers, requested_start_date):
     """
     檢查是否有任何股票的數據起始日顯著晚於請求的起始日。
-    回傳有問題的股票列表，用於產生警告或備註。
     """
     problematic_tickers = []
     for ticker in all_tickers:
