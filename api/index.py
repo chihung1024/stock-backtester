@@ -221,11 +221,11 @@ def screener_handler():
     try:
         data = request.get_json()
         index = data.get('index', 'sp500')
-        min_market_cap = data.get('minMarketCap', 0)
-        sector = data.get('sector', 'any')
+        filters = data.get('filters', {})
 
         all_stocks = get_preprocessed_data()
 
+        # 根據指數篩選基礎池
         if index == 'sp500':
             base_pool = [s for s in all_stocks if s.get('in_sp500')]
         elif index == 'nasdaq100':
@@ -235,14 +235,29 @@ def screener_handler():
         else:
             base_pool = all_stocks
 
+        # 進行財務指標篩選
         filtered_stocks = []
         for stock in base_pool:
-            if stock.get('marketCap', 0) < min_market_cap:
-                continue
-            if sector != 'any' and stock.get('sector') != sector:
-                continue
+            match = True
+            for key, limits in filters.items():
+                stock_value = stock.get(key)
+                # 如果股票缺乏該數據，或數據不是數字，則不符合篩選條件
+                if stock_value is None or not isinstance(stock_value, (int, float)):
+                    match = False
+                    break
+                
+                # 檢查最小值
+                if limits.get('min') is not None and stock_value < limits['min']:
+                    match = False
+                    break
+                
+                # 檢查最大值
+                if limits.get('max') is not None and stock_value > limits['max']:
+                    match = False
+                    break
             
-            filtered_stocks.append(stock['ticker'])
+            if match:
+                filtered_stocks.append(stock['ticker'])
 
         return jsonify(filtered_stocks)
     except ValueError as e:
