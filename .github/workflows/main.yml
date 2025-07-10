@@ -38,11 +38,13 @@ jobs:
           
           # 檢查是否有變動
           if ! git diff --staged --quiet; then
-            # 在提交前，先從遠端拉取最新的變更，並使用 rebase 模式
-            # --rebase 可以讓提交歷史保持線性，避免不必要的合併提交
+            # 步驟 1: 先在本地進行提交
+            git commit -m "chore: 自動更新股票數據"
+            
+            # 步驟 2: 在乾淨的工作狀態下，從遠端拉取最新的變更
             git pull --rebase
             
-            git commit -m "chore: 自動更新股票數據"
+            # 步驟 3: 將合併後的結果推送回遠端倉庫
             git push
           else
             echo "數據無變動，無需提交。"
