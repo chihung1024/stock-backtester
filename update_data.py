@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 # --- 設定資料儲存路徑 ---
-# 建立 data 資料夾來存放所有產出的檔案
 data_folder = Path("data")
 prices_folder = data_folder / "prices"
 data_folder.mkdir(exist_ok=True)
@@ -59,19 +58,7 @@ def get_nasdaq100_from_wiki():
         print(f"備援方案失敗 (NASDAQ 100): {e}")
         return []
 
-def get_russell1000_from_ishares():
-    """備援方案：從 iShares 官網獲取 Russell 1000 成分股列表"""
-    try:
-        print("備援方案：正在從 iShares 官網獲取 Russell 1000 列表...")
-        url = 'https://www.ishares.com/us/products/239707/ishares-russell-1000-etf/1467271812596.ajax?fileType=csv&fileName=IWB_holdings&dataType=fund'
-        df = pd.read_csv(url, skiprows=9)
-        df = df[df['Asset Class'] == 'Equity']
-        tickers = df['Ticker'].dropna().unique().tolist()
-        print(f"成功從 iShares 獲取 {len(tickers)} 支 Russell 1000 股票。")
-        return tickers
-    except Exception as e:
-        print(f"備援方案失敗 (Russell 1000): {e}")
-        return []
+# (已移除) get_russell1000_from_ishares() 函式已被移除
 
 def get_stock_info(ticker_str, max_retries=3, initial_delay=5):
     """使用 yfinance 獲取股票的詳細財務資訊，並加入重試與指數退避機制。"""
@@ -122,14 +109,13 @@ def update_price_data(tickers):
     for i, ticker in enumerate(tickers):
         try:
             print(f"正在下載: {ticker} ({i+1}/{len(tickers)})")
-            # 下載從 1990 年至今的調整後收盤價
             data = yf.download(ticker, start="1990-01-01", auto_adjust=True, progress=False)
             if not data.empty:
                 price_df = data[['Close']].copy()
                 price_df.to_csv(prices_folder / f"{ticker}.csv")
             else:
                 print(f"  -> {ticker} 沒有可下載的價格數據。")
-            time.sleep(0.3) # 避免請求過於頻繁
+            time.sleep(0.3)
         except Exception as e:
             print(f"  -> 下載 {ticker} 價格時發生錯誤: {e}")
     print("--- 歷史價格數據更新完成 ---")
@@ -139,20 +125,16 @@ def main():
     """主執行函式"""
     print("--- 開始更新基本面數據 ---")
     
-    # S&P 500 with fallback
     sp500_tickers = get_etf_holdings("VOO") or get_sp500_from_wiki()
-    
-    # NASDAQ 100 with fallback
     nasdaq100_tickers = get_etf_holdings("QQQ") or get_nasdaq100_from_wiki()
-
-    # Russell 1000 with fallback
-    russell1000_tickers = get_etf_holdings("IWB") or get_russell1000_from_ishares()
-
+    # (已移除) 羅素 1000 的獲取邏輯
+    
     sp500_set = set(sp500_tickers)
     nasdaq100_set = set(nasdaq100_tickers)
-    russell1000_set = set(russell1000_tickers)
+    # (已移除) 羅素 1000 的集合
     
-    all_unique_tickers = sorted(list(sp500_set.union(nasdaq100_set).union(russell1000_set)))
+    # (已修改) 合併股票池，不再包含羅素 1000
+    all_unique_tickers = sorted(list(sp500_set.union(nasdaq100_set)))
     
     if not all_unique_tickers:
         print("錯誤：所有數據來源均無法獲取任何成分股，終止執行。")
@@ -167,7 +149,7 @@ def main():
         if info:
             info['in_sp500'] = ticker in sp500_set
             info['in_nasdaq100'] = ticker in nasdaq100_set
-            info['in_russell1000'] = ticker in russell1000_set
+            # (已移除) 不再標記是否在羅素 1000 中
             all_stock_data.append(info)
         time.sleep(0.2) 
 
@@ -176,7 +158,6 @@ def main():
         
     print(f"基本面數據處理完成，已儲存至 {PREPROCESSED_JSON_PATH}")
 
-    # **新增步驟**：更新所有股票的歷史價格數據
     update_price_data(all_unique_tickers)
 
 if __name__ == '__main__':
