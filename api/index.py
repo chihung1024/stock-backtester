@@ -7,6 +7,7 @@ import sys
 from io import StringIO
 from cachetools import cached, TTLCache
 import requests
+import os
 
 app = Flask(__name__)
 
@@ -19,9 +20,8 @@ EPSILON = 1e-9
 # --- 快取設定 ---
 cache = TTLCache(maxsize=128, ttl=600)
 
-# --- [CRITICAL] 指向您託管預處理數據的 Gist Raw URL ---
-# 您需要將此 URL 替換為您自己的 Gist Raw URL
-PREPROCESSED_DATA_URL = "https://gist.githubusercontent.com/YOUR_USERNAME/YOUR_GIST_ID/raw/preprocessed_data.json"
+# --- 從環境變數讀取 Gist Raw URL ---
+GIST_RAW_URL = os.environ.get('GIST_RAW_URL')
 
 # --- 核心計算函式 ---
 def calculate_metrics(portfolio_history, benchmark_history=None, risk_free_rate=RISK_FREE_RATE):
@@ -222,10 +222,10 @@ def screener_handler():
         data = request.get_json()
         index = data.get('index', 'sp500')
         filters = data.get('filters', {})
+        sector = data.get('sector', 'any')
 
         all_stocks = get_preprocessed_data()
 
-        # 根據指數篩選基礎池
         if index == 'sp500':
             base_pool = [s for s in all_stocks if s.get('in_sp500')]
         elif index == 'nasdaq100':
@@ -235,23 +235,23 @@ def screener_handler():
         else:
             base_pool = all_stocks
 
-        # 進行財務指標篩選
         filtered_stocks = []
         for stock in base_pool:
+            # 產業篩選
+            if sector != 'any' and stock.get('sector') != sector:
+                continue
+            
             match = True
             for key, limits in filters.items():
                 stock_value = stock.get(key)
-                # 如果股票缺乏該數據，或數據不是數字，則不符合篩選條件
                 if stock_value is None or not isinstance(stock_value, (int, float)):
                     match = False
                     break
                 
-                # 檢查最小值
                 if limits.get('min') is not None and stock_value < limits['min']:
                     match = False
                     break
                 
-                # 檢查最大值
                 if limits.get('max') is not None and stock_value > limits['max']:
                     match = False
                     break
