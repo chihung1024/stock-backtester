@@ -1,7 +1,19 @@
-# 忽略由自動化腳本生成的數據資料夾
-/data/
+# Cloudflare
+.wrangler/
+.mf/
 
-# 忽略 Python 的快取和虛擬環境檔案
+# Python
 __pycache__/
 *.pyc
 .venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
