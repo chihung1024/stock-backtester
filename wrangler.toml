@@ -1,0 +1,16 @@
+# wrangler.toml
+# 這是 Cloudflare Pages 和 Workers 的主要設定檔。
+# 它會取代原本的 vercel.json。
+
+name = "stock-backtester"
+compatibility_date = "2024-07-14"
+
+# 告訴 Cloudflare Pages 你的靜態網站資源放在哪個目錄。
+# 我們會將 backtest.html 移到 public/index.html。
+pages_build_output_dir = "public"
+
+# 設定一個定時觸發器 (Cron Trigger) 來執行每日資料更新任務。
+# 這會對應到 functions/update_data_worker.py。
+# '0 0 * * *' 代表每天午夜 (UTC) 執行一次。
+[triggers]
+crons = ["0 0 * * *"]
